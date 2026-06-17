@@ -312,7 +312,7 @@
     flex: 1;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 0 16px 180px;
+    padding: 0 16px 16px;
     min-height: 0;
   }
 
@@ -322,7 +322,7 @@
     flex-shrink: 0;
     background: var(--bg);
     border-top: 1px solid var(--border);
-    padding: 10px 16px 16px;
+    padding: 10px 16px max(16px, env(safe-area-inset-bottom));
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -361,7 +361,6 @@
   .turn.maya .turn-speaker { color: var(--maya); }
   .turn-num { font-size: 0.6rem; color: var(--muted); margin-left: auto; }
 
-  /* テキストは折り返し・全表示 */
   .turn-text {
     font-size: 0.85rem;
     line-height: 1.75;
@@ -371,7 +370,6 @@
     padding-bottom: 2px;
   }
 
-  /* ダウンロードボタン：テキストの下に独立した行 */
   .turn-footer {
     margin-top: 8px;
     display: flex;
@@ -783,7 +781,7 @@ async function playTurn(idx) {
     } else {
       audioUrl = await fetchTTS(t.text, getVoice(who), getRate(who));
       audioCache[cacheKey] = audioUrl;
-      refreshDownloadButtons(); // 取得完了時点で即表示
+      refreshDownloadButtons();
     }
   } catch(e) {
     audioCache[cacheKey] = 'error';
