@@ -55,6 +55,21 @@
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
+  #edit-btn {
+    margin-left: auto;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    cursor: pointer;
+    display: none;
+  }
+  #edit-btn.visible { display: block; }
 
   #api-key-section {
     margin: 12px 16px 0;
@@ -431,6 +446,7 @@
 <header>
   <h1>Dialog Player</h1>
   <span>shadowing / listening</span>
+  <button id="edit-btn">Edit</button>
 </header>
 
 <div id="api-key-section">
@@ -732,6 +748,9 @@ document.getElementById('load-btn').addEventListener('click', () => {
   audioCache = {}; currentIdx = 0; repeatCount = 0;
   renderTurns();
   document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('input-section').style.display = 'none';
+  document.getElementById('load-btn').style.display = 'none';
+  document.getElementById('edit-btn').classList.add('visible');
   document.getElementById('player-section').classList.add('visible');
   document.getElementById('turn-count-label').textContent = `${turns.length} turns`;
   totalEstSec = calcTotalSec();
@@ -872,6 +891,14 @@ document.getElementById('hide-btn').addEventListener('click', () => {
   btn.classList.toggle('on', hideText);
   if (turns.length) renderTurns();
   if (isPlaying) highlightTurn(currentIdx);
+});
+
+document.getElementById('edit-btn').addEventListener('click', () => {
+  document.getElementById('input-section').style.display = '';
+  document.getElementById('load-btn').style.display = '';
+  document.getElementById('edit-btn').classList.remove('visible');
+  document.getElementById('player-section').classList.remove('visible');
+  document.getElementById('empty-state').style.display = 'none';
 });
 
 function updateStatus(msg) {
