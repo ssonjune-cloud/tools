@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Dialog Player</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap');
 
@@ -437,6 +438,39 @@
 
   #player-section { display: none; flex-direction: column; flex: 1; overflow: hidden; min-height: 0; }
   #player-section.visible { display: flex; }
+
+  #dl-all-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  #dl-all-btn:hover { border-color: var(--accent); color: var(--accent); }
+  #dl-all-btn:active { opacity: 0.7; }
+  #dl-all-btn.loading {
+    border-color: var(--accent);
+    color: var(--accent);
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  #dl-all-progress {
+    font-size: 0.6rem;
+    color: var(--muted);
+    display: none;
+  }
+  #dl-all-btn.loading #dl-all-progress { display: inline; }
 </style>
 </head>
 <body>
@@ -541,6 +575,9 @@
         <span class="pause-val" id="pause-val">1.0s</span>
       </div>
     </div>
+    <button id="dl-all-btn">
+      ↓ Download all as ZIP <span id="dl-all-progress"></span>
+    </button>
   </div>
 
 </div>
@@ -906,6 +943,61 @@ function updateStatus(msg) {
   if (!turns.length) { left.textContent = '—'; return; }
   left.textContent = `${currentIdx + 1} / ${turns.length}  ·  ${turns[currentIdx].speaker}`;
 }
+
+// ─── 一括ダウンロード ───
+document.getElementById('dl-all-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('dl-all-btn');
+  const prog = document.getElementById('dl-all-progress');
+  if (!turns.length) return;
+  if (btn.classList.contains('loading')) return;
+
+  btn.classList.add('loading');
+  btn.querySelector('span').style.display = 'inline';
+
+  const zip = new JSZip();
+  let done = 0;
+
+  prog.textContent = `0 / ${turns.length}`;
+
+  for (let i = 0; i < turns.length; i++) {
+    const t = turns[i];
+    const who = t.speaker.toLowerCase();
+    const cacheKey = `${i}_${getVoice(who)}_${getRate(who)}`;
+    const fname = `turn_${String(i+1).padStart(2,'0')}_${who}.mp3`;
+
+    try {
+      let audioUrl;
+      if (audioCache[cacheKey] && audioCache[cacheKey] !== 'error') {
+        audioUrl = audioCache[cacheKey];
+      } else {
+        audioUrl = await fetchTTS(t.text, getVoice(who), getRate(who));
+        audioCache[cacheKey] = audioUrl;
+        refreshDownloadButtons();
+      }
+      // blob URLからArrayBufferを取得
+      const res = await fetch(audioUrl);
+      const buf = await res.arrayBuffer();
+      zip.file(fname, buf);
+    } catch(e) {
+      zip.file(fname + '.error.txt', `Error: ${e.message}`);
+    }
+
+    done++;
+    prog.textContent = `${done} / ${turns.length}`;
+  }
+
+  // ZIP生成してダウンロード
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'dialog.zip';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+  btn.classList.remove('loading');
+  prog.textContent = '';
+});
 </script>
 </body>
 </html>
