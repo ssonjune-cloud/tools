@@ -327,6 +327,8 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+    overflow-y: auto;
+    max-height: 55dvh;
   }
 
   /* ─── Turn card ─── */
@@ -468,9 +470,7 @@
   #dl-all-progress {
     font-size: 0.6rem;
     color: var(--muted);
-    display: none;
   }
-  #dl-all-btn.loading #dl-all-progress { display: inline; }
 </style>
 </head>
 <body>
@@ -778,9 +778,19 @@ document.getElementById('load-btn').addEventListener('click', () => {
     keySection.classList.add('error'); keyStatus.textContent = '!'; keyInput.focus(); return;
   }
   const raw = document.getElementById('dialog-input').value;
-  turns = parseDialog(raw);
-  if (!turns.length) { alert('No turns found.\nFormat: Shu: ... or Maya: ...'); return; }
-  audioCache = {}; currentIdx = 0; repeatCount = 0;
+  const newTurns = parseDialog(raw);
+  if (!newTurns.length) { alert('No turns found.\nFormat: Shu: ... or Maya: ...'); return; }
+  // テキストが変わったターンのキャッシュだけ削除（同じなら再利用）
+  newTurns.forEach((t, i) => {
+    if (!turns[i] || turns[i].text !== t.text || turns[i].speaker !== t.speaker) {
+      Object.keys(audioCache).filter(k => k.startsWith(`${i}_`)).forEach(k => delete audioCache[k]);
+    }
+  });
+  for (let i = newTurns.length; i < turns.length; i++) {
+    Object.keys(audioCache).filter(k => k.startsWith(`${i}_`)).forEach(k => delete audioCache[k]);
+  }
+  turns = newTurns;
+  currentIdx = 0; repeatCount = 0;
   renderTurns();
   document.getElementById('empty-state').style.display = 'none';
   document.getElementById('input-section').style.display = 'none';
@@ -952,12 +962,10 @@ document.getElementById('dl-all-btn').addEventListener('click', async () => {
   if (btn.classList.contains('loading')) return;
 
   btn.classList.add('loading');
-  btn.querySelector('span').style.display = 'inline';
+  prog.textContent = `0 / ${turns.length}`;
 
   const zip = new JSZip();
   let done = 0;
-
-  prog.textContent = `0 / ${turns.length}`;
 
   for (let i = 0; i < turns.length; i++) {
     const t = turns[i];
