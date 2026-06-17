@@ -98,6 +98,35 @@
     flex-shrink: 0;
   }
 
+  /* Save key row */
+  .api-key-save-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px 8px;
+    border-top: 1px solid var(--border);
+  }
+  .api-key-save-row label {
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    user-select: none;
+  }
+  #save-key-checkbox {
+    accent-color: var(--accent);
+    width: 13px;
+    height: 13px;
+    cursor: pointer;
+  }
+  .save-key-note {
+    font-size: 0.58rem;
+    color: var(--muted);
+    margin-left: auto;
+    opacity: 0.6;
+  }
+
   /* ─── Input Area ─── */
   #input-section {
     margin: 10px 16px 0;
@@ -461,6 +490,11 @@
     <input type="password" id="api-key-input" placeholder="sk-..." autocomplete="off" spellcheck="false">
     <span id="api-key-status">—</span>
   </div>
+  <div class="api-key-save-row">
+    <input type="checkbox" id="save-key-checkbox">
+    <label for="save-key-checkbox">Save key</label>
+    <span class="save-key-note">stored in browser only</span>
+  </div>
 </div>
 
 <!-- Input -->
@@ -561,7 +595,7 @@
 <script>
 // ── State ──
 let turns = [];
-let audioCache = {};   // idx -> AudioBuffer or 'loading' or 'error'
+let audioCache = {};
 let currentIdx = 0;
 let isPlaying = false;
 let repeatMode = 1;
@@ -580,11 +614,16 @@ let countdownRunning = false;
 let turnRemainCache = [];
 
 // ── API Key ──
-let apiKey = sessionStorage.getItem('oai_key') || '';
+// localStorage に保存されていれば読み込む、なければ sessionStorage を fallback
+let apiKey = localStorage.getItem('oai_key') || sessionStorage.getItem('oai_key') || '';
 
 const keyInput = document.getElementById('api-key-input');
 const keyStatus = document.getElementById('api-key-status');
 const keySection = document.getElementById('api-key-section');
+const saveKeyCheckbox = document.getElementById('save-key-checkbox');
+
+// チェックボックスの初期状態：localStorage にキーがあれば ON
+saveKeyCheckbox.checked = !!localStorage.getItem('oai_key');
 
 if (apiKey) {
   keyInput.value = apiKey;
@@ -594,7 +633,7 @@ if (apiKey) {
 
 keyInput.addEventListener('input', e => {
   apiKey = e.target.value.trim();
-  sessionStorage.setItem('oai_key', apiKey);
+  persistKey();
   if (apiKey.startsWith('sk-') && apiKey.length > 20) {
     keyStatus.textContent = '✓';
     keySection.classList.remove('error');
@@ -603,8 +642,26 @@ keyInput.addEventListener('input', e => {
     keyStatus.textContent = '—';
     keySection.classList.remove('valid', 'error');
   }
-  audioCache = {}; // キー変更時にキャッシュクリア
+  audioCache = {};
 });
+
+saveKeyCheckbox.addEventListener('change', () => {
+  persistKey();
+  if (!saveKeyCheckbox.checked) {
+    // チェックを外したら localStorage から即削除
+    localStorage.removeItem('oai_key');
+  }
+});
+
+function persistKey() {
+  if (saveKeyCheckbox.checked) {
+    localStorage.setItem('oai_key', apiKey);
+    sessionStorage.removeItem('oai_key');
+  } else {
+    sessionStorage.setItem('oai_key', apiKey);
+    localStorage.removeItem('oai_key');
+  }
+}
 
 // ── OpenAI TTS ──
 async function fetchTTS(text, voice, speed) {
@@ -633,7 +690,7 @@ async function fetchTTS(text, voice, speed) {
 ['shu','maya'].forEach(who => {
   document.getElementById(`${who}-rate`).addEventListener('input', e => {
     document.getElementById(`${who}-rate-val`).textContent = parseFloat(e.target.value).toFixed(2) + '×';
-    audioCache = {}; // 速度変更でキャッシュ無効化
+    audioCache = {};
     if (turns.length) {
       totalEstSec = calcTotalSec();
       buildTurnRemainCache();
@@ -733,19 +790,17 @@ function renderTurns() {
       <div class="turn-text">${hideText ? '・・・' : escHtml(t.text)}</div>
       <div class="playing-bar"></div>`;
     div.addEventListener('click', e => {
-      if (e.target.closest('.dl-btn')) return; // ダウンロードボタンは再生しない
+      if (e.target.closest('.dl-btn')) return;
       jumpTo(i);
     });
     list.appendChild(div);
   });
-  // すでにキャッシュ済みのターンはボタンを即表示
   refreshDownloadButtons();
 }
 function escHtml(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// キャッシュ済みターンのダウンロードボタンを有効化
 function refreshDownloadButtons() {
   document.querySelectorAll('.dl-btn').forEach(btn => {
     const idx = parseInt(btn.dataset.idx);
