@@ -297,7 +297,7 @@
     flex: 1;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 0 16px 16px;
+    padding: 0 16px 180px;
     min-height: 0;
   }
 
@@ -365,24 +365,34 @@
     min-height: 24px;
   }
   .dl-btn {
-    display: none;
+    display: flex;
     align-items: center;
     gap: 4px;
-    background: var(--surface2);
+    background: rgba(200,247,110,0.06);
     border: 1px solid var(--border);
     border-radius: 6px;
     color: var(--muted);
     font-family: 'DM Mono', monospace;
-    font-size: 0.62rem;
+    font-size: 0.65rem;
+    font-weight: 500;
     letter-spacing: 0.06em;
-    padding: 5px 12px;
-    cursor: pointer;
-    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    padding: 6px 14px;
+    cursor: default;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
     text-decoration: none;
     flex-shrink: 0;
+    opacity: 0.4;
+    pointer-events: none;
   }
-  .dl-btn.ready { display: flex; }
-  .dl-btn:active { color: var(--accent); border-color: var(--accent); background: rgba(200,247,110,0.08); }
+  .dl-btn.ready {
+    background: rgba(200,247,110,0.15);
+    border-color: var(--accent);
+    color: var(--accent);
+    opacity: 1;
+    cursor: pointer;
+    pointer-events: auto;
+  }
+  .dl-btn.ready:active { background: rgba(200,247,110,0.3); }
 
   .playing-bar {
     position: absolute;
@@ -754,7 +764,7 @@ async function playTurn(idx) {
     } else {
       audioUrl = await fetchTTS(t.text, getVoice(who), getRate(who));
       audioCache[cacheKey] = audioUrl;
-      refreshDownloadButtons();
+      refreshDownloadButtons(); // 取得完了時点で即表示
     }
   } catch(e) {
     audioCache[cacheKey] = 'error';
