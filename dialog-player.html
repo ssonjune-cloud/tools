@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Dialog Player</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap');
 
@@ -576,7 +575,7 @@
       </div>
     </div>
     <button id="dl-all-btn">
-      ↓ Download all as ZIP <span id="dl-all-progress"></span>
+      ↓ Download as MP3 <span id="dl-all-progress"></span>
     </button>
   </div>
 
@@ -964,14 +963,13 @@ document.getElementById('dl-all-btn').addEventListener('click', async () => {
   btn.classList.add('loading');
   prog.textContent = `0 / ${turns.length}`;
 
-  const zip = new JSZip();
+  const buffers = [];
   let done = 0;
 
   for (let i = 0; i < turns.length; i++) {
     const t = turns[i];
     const who = t.speaker.toLowerCase();
     const cacheKey = `${i}_${getVoice(who)}_${getRate(who)}`;
-    const fname = `turn_${String(i+1).padStart(2,'0')}_${who}.mp3`;
 
     try {
       let audioUrl;
@@ -982,30 +980,78 @@ document.getElementById('dl-all-btn').addEventListener('click', async () => {
         audioCache[cacheKey] = audioUrl;
         refreshDownloadButtons();
       }
-      // blob URLからArrayBufferを取得
       const res = await fetch(audioUrl);
       const buf = await res.arrayBuffer();
-      zip.file(fname, buf);
+      buffers.push(buf);
+
+      // ターン間の無音を挿入（pauseInterval秒）
+      if (i < turns.length - 1 && pauseInterval > 0) {
+        buffers.push(makeSilenceMP3(pauseInterval));
+      }
     } catch(e) {
-      zip.file(fname + '.error.txt', `Error: ${e.message}`);
+      console.warn(`Turn ${i+1} error:`, e.message);
     }
 
     done++;
     prog.textContent = `${done} / ${turns.length}`;
   }
 
-  // ZIP生成してダウンロード
-  const blob = await zip.generateAsync({ type: 'blob' });
+  // 全バッファを結合して1つのMP3に
+  const total = buffers.reduce((s, b) => s + b.byteLength, 0);
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const buf of buffers) {
+    merged.set(new Uint8Array(buf), offset);
+    offset += buf.byteLength;
+  }
+
+  const blob = new Blob([merged], { type: 'audio/mpeg' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'dialog.zip';
+  a.download = 'dialog.mp3';
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 
   btn.classList.remove('loading');
   prog.textContent = '';
 });
+
+// MP3形式の無音フレームを生成（近似：無音フレームを繰り返す）
+function makeSilenceMP3(seconds) {
+  // 128kbps MP3の無音フレーム (1フレーム = 26ms @ 44100Hz)
+  const silentFrame = new Uint8Array([
+    0xFF,0xFB,0x90,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+  ]); // 約26ms/フレーム
+  const framesNeeded = Math.ceil(seconds / 0.026);
+  const buf = new ArrayBuffer(silentFrame.length * framesNeeded);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i < framesNeeded; i++) {
+    view.set(silentFrame, i * silentFrame.length);
+  }
+  return buf;
+}
 </script>
 </body>
 </html>
