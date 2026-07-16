@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>旅のしおり｜島根・鳥取 2026</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;600&family=Noto+Sans+JP:wght@300;400;500&display=swap');
+
+  :root {
+    --ink:      #1e1e1e;
+    --ink-soft: #4a4a4a;
+    --mist:     #f0ede8;
+    --paper:    #faf8f5;
+    --water:    #4a7c9e;   /* 宍道湖の水 */
+    --rust:     #8c4a2f;   /* 出雲の土 */
+    --pine:     #3a5c3e;   /* 山陰の緑 */
+    --sand:     #c4a97a;   /* 鳥取砂丘 */
+    --line:     #d4cfc8;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-weight: 300;
+    line-height: 1.8;
+    font-size: 15px;
+  }
+
+  /* ── COVER ── */
+  .cover {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 60px 24px;
+    background: linear-gradient(160deg, #1a2d3a 0%, #2c4a38 50%, #3a3020 100%);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Ccircle cx='100' cy='100' r='80' fill='none' stroke='rgba(255,255,255,0.03)' stroke-width='1'/%3E%3Ccircle cx='100' cy='100' r='60' fill='none' stroke='rgba(255,255,255,0.03)' stroke-width='1'/%3E%3Ccircle cx='100' cy='100' r='40' fill='none' stroke='rgba(255,255,255,0.03)' stroke-width='1'/%3E%3C/svg%3E") center/400px repeat;
+    opacity: 0.4;
+  }
+
+  .cover-eyebrow {
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    color: var(--sand);
+    text-transform: uppercase;
+    margin-bottom: 28px;
+    position: relative;
+  }
+
+  .cover-title {
+    font-family: 'Noto Serif JP', serif;
+    font-weight: 300;
+    font-size: clamp(36px, 8vw, 64px);
+    color: #fff;
+    line-height: 1.3;
+    letter-spacing: 0.05em;
+    position: relative;
+    margin-bottom: 8px;
+  }
+
+  .cover-title span {
+    color: var(--sand);
+  }
+
+  .cover-sub {
+    font-family: 'Noto Serif JP', serif;
+    font-weight: 300;
+    font-size: clamp(14px, 3vw, 18px);
+    color: rgba(255,255,255,0.55);
+    letter-spacing: 0.15em;
+    margin-top: 16px;
+    position: relative;
+  }
+
+  .cover-dates {
+    margin-top: 48px;
+    position: relative;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    color: rgba(255,255,255,0.4);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+  }
+
+  .cover-dates span { color: rgba(255,255,255,0.7); }
+
+  .cover-scroll {
+    position: absolute;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.25);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    animation: pulse 2.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse { 0%,100%{opacity:0.25} 50%{opacity:0.6} }
+
+  /* ── LAYOUT ── */
+  .page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  /* ── SECTION HEADER ── */
+  .section-head {
+    padding: 72px 0 40px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 48px;
+  }
+
+  .section-label {
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: var(--water);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .section-title {
+    font-family: 'Noto Serif JP', serif;
+    font-weight: 300;
+    font-size: clamp(22px, 5vw, 32px);
+    color: var(--ink);
+    line-height: 1.4;
+  }
+
+  /* ── DAY CARD ── */
+  .day {
+    margin-bottom: 64px;
+  }
+
+  .day-header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid currentColor;
+  }
+
+  .day-header.d1 { color: var(--rust); border-color: var(--rust); }
+  .day-header.d2 { color: var(--water); border-color: var(--water); }
+  .day-header.d3 { color: var(--pine); border-color: var(--pine); }
+  .day-header.d4 { color: var(--sand); border-color: var(--sand); }
+
+  .day-number {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    opacity: 0.7;
+  }
+
+  .day-title {
+    font-family: 'Noto Serif JP', serif;
+    font-weight: 600;
+    font-size: clamp(18px, 4vw, 24px);
+  }
+
+  .day-date {
+    margin-left: auto;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    opacity: 0.6;
+  }
+
+  /* ── TIMELINE ── */
+  .timeline {
+    position: relative;
+    padding-left: 28px;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 8px;
+    bottom: 0;
+    width: 1px;
+    background: var(--line);
+  }
+
+  .tl-item {
+    position: relative;
+    margin-bottom: 28px;
+  }
+
+  .tl-item::before {
+    content: '';
+    position: absolute;
+    left: -24px;
+    top: 8px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--line);
+    border: 2px solid var(--paper);
+  }
+
+  .tl-item.accent::before { background: var(--water); }
+  .tl-item.accent-rust::before { background: var(--rust); }
+  .tl-item.accent-pine::before { background: var(--pine); }
+  .tl-item.accent-sand::before { background: var(--sand); }
+
+  .tl-time {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--ink-soft);
+    margin-bottom: 4px;
+  }
+
+  .tl-place {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 17px;
+    font-weight: 400;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+
+  .tl-note {
+    font-size: 13px;
+    color: var(--ink-soft);
+    line-height: 1.7;
+  }
+
+  .tl-note em {
+    font-style: normal;
+    color: var(--rust);
+    background: rgba(140,74,47,0.08);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+  }
+
+  /* ── STAY CARD ── */
+  .stay {
+    background: var(--mist);
+    border-left: 3px solid var(--water);
+    padding: 20px 24px;
+    margin: 32px 0 0;
+    border-radius: 0 8px 8px 0;
+  }
+
+  .stay.ryokan {
+    border-color: var(--rust);
+    background: rgba(140,74,47,0.06);
+  }
+
+  .stay-label {
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .stay-name {
+    font-family: 'Noto Serif JP', serif;
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+
+  .stay-detail {
+    font-size: 13px;
+    color: var(--ink-soft);
+    line-height: 1.7;
+  }
+
+  /* ── HIGHLIGHT BOX ── */
+  .highlight {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 20px 0;
+    background: #fff;
+  }
+
+  .highlight-title {
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    color: var(--pine);
+    margin-bottom: 10px;
+    font-weight: 500;
+  }
+
+  .highlight ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  .highlight ul li {
+    font-size: 13px;
+    color: var(--ink-soft);
+    padding: 4px 0;
+    padding-left: 16px;
+    position: relative;
+  }
+
+  .highlight ul li::before {
+    content: '—';
+    position: absolute;
+    left: 0;
+    color: var(--line);
+  }
+
+  /* ── TIPS SECTION ── */
+  .tips-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-top: 32px;
+  }
+
+  .tip-card {
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 20px;
+  }
+
+  .tip-icon {
+    font-size: 22px;
+    margin-bottom: 10px;
+  }
+
+  .tip-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+
+  .tip-body {
+    font-size: 12px;
+    color: var(--ink-soft);
+    line-height: 1.7;
+  }
+
+  /* ── TRANSPORT ── */
+  .transport {
+    background: var(--mist);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 20px 0;
+    font-size: 13px;
+    color: var(--ink-soft);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .transport-icon { font-size: 18px; }
+
+  /* ── FOOTER ── */
+  footer {
+    background: #1a2d3a;
+    color: rgba(255,255,255,0.4);
+    text-align: center;
+    padding: 48px 24px;
+    margin-top: 80px;
+    font-size: 12px;
+    letter-spacing: 0.15em;
+  }
+
+  footer strong {
+    display: block;
+    color: rgba(255,255,255,0.7);
+    font-family: 'Noto Serif JP', serif;
+    font-weight: 300;
+    font-size: 16px;
+    margin-bottom: 8px;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 480px) {
+    .day-date { display: none; }
+    .tips-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cover-scroll { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-eyebrow">Travel Guide 2026</div>
+  <h1 class="cover-title">島根<span>・</span>鳥取</h1>
+  <div class="cover-sub">山陰の風と水に、遊ぶ旅。</div>
+  <div class="cover-dates">
+    <span>8月20日（木）</span>〜<span>8月23日（日）</span>　3泊4日
+  </div>
+  <div class="cover-scroll">scroll ↓</div>
+</div>
+
+<!-- DAY 1 -->
+<div class="page">
+  <div class="section-head">
+    <div class="section-label">Itinerary</div>
+    <h2 class="section-title">4日間の旅程</h2>
+  </div>
+
+  <div class="day">
+    <div class="day-header d1">
+      <div class="day-number">DAY 01</div>
+      <div class="day-title">出雲　到着の夜</div>
+      <div class="day-date">8月20日（木）</div>
+    </div>
+
+    <div class="timeline">
+      <div class="tl-item accent-rust">
+        <div class="tl-time">14:55</div>
+        <div class="tl-place">✈️ 羽田空港　出発</div>
+        <div class="tl-note">ANA / JAL 国内線</div>
+      </div>
+      <div class="tl-item accent-rust">
+        <div class="tl-time">16:15</div>
+        <div class="tl-place">🏔 出雲縁結び空港　到着</div>
+        <div class="tl-note">ニッポンレンタカーにて車を受け取り</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">17:00 ごろ</div>
+        <div class="tl-place">ホテルへ移動・チェックイン</div>
+        <div class="tl-note">荷物を置いて、身軽に夕涼みへ</div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">18:00〜</div>
+        <div class="tl-place">出雲駅周辺　夕散策</div>
+        <div class="tl-note">地元の割烹・居酒屋で夕食。<em>翌朝は早起き</em>なので早めに就寝。</div>
+      </div>
+    </div>
+
+    <div class="stay">
+      <div class="stay-label">宿泊</div>
+      <div class="stay-name">出雲ロイヤルホテル</div>
+      <div class="stay-detail">素泊まり　／　翌朝 5:30 頃 出発のため前夜は軽めに</div>
+    </div>
+  </div>
+
+  <!-- DAY 2 -->
+  <div class="day">
+    <div class="day-header d2">
+      <div class="day-number">DAY 02</div>
+      <div class="day-title">出雲大社　→　松江・皆美館</div>
+      <div class="day-date">8月21日（金）</div>
+    </div>
+
+    <div class="timeline">
+      <div class="tl-item accent-rust">
+        <div class="tl-time">05:30 出発 / 07:00 着</div>
+        <div class="tl-place">⛩️ 出雲大社</div>
+        <div class="tl-note">夏の早朝参拝。人が少なく、空気も涼しい黄金時間。<br>
+          <em>無料駐車場（第1駐車場）は 6:00 開場</em><br>
+          大社前の参道カフェで朝食を。</div>
+      </div>
+
+      <div class="highlight">
+        <div class="highlight-title">✦ 出雲大社　見どころ</div>
+        <ul>
+          <li>日本最大級の注連縄がかかる神楽殿</li>
+          <li>縁結びの神・大国主命を祀る本殿（拝殿越しに参拝）</li>
+          <li>早朝は本殿周辺を静かに巡れる</li>
+          <li>参道の「出雲そば」は帰りに立ち寄っても◎</li>
+        </ul>
+      </div>
+
+      <div class="tl-item accent">
+        <div class="tl-time">10:30 ごろ</div>
+        <div class="tl-place">🚗 松江へ移動（約45分）</div>
+        <div class="tl-note">出雲大社IC → 松江方面</div>
+      </div>
+
+      <div class="tl-item accent">
+        <div class="tl-time">11:30</div>
+        <div class="tl-place">🏯 松江城</div>
+        <div class="tl-note">現存12天守のひとつ。黒い木造の天守は国宝指定。<br>城山公園からの眺めも美しい。</div>
+      </div>
+
+      <div class="tl-item accent">
+        <div class="tl-time">13:30</div>
+        <div class="tl-place">🚤 堀川遊覧船</div>
+        <div class="tl-note">松江城を取り囲む堀川を小舟でゆっくり周遊（約50分）。<br>低い橋をくぐる際、屋根が自動で下がる仕掛けが楽しい。<br><em>夏は日焼け対策を忘れずに</em></div>
+      </div>
+
+      <div class="tl-item accent">
+        <div class="tl-time">15:00〜</div>
+        <div class="tl-place">松江城下町　散策</div>
+        <div class="tl-note">小泉八雲記念館、武家屋敷、塩見縄手など趣ある通りを歩く</div>
+      </div>
+
+      <div class="tl-item accent">
+        <div class="tl-time">16:00 ごろ</div>
+        <div class="tl-place">🏨 皆美館　チェックイン</div>
+        <div class="tl-note">車は皆美館の無料駐車場へ。以降は徒歩で松江を堪能。</div>
+      </div>
+
+      <div class="tl-item accent-rust">
+        <div class="tl-time">18:00〜</div>
+        <div class="tl-place">🌅 宍道湖サンセット</div>
+        <div class="tl-note">日没は <em>18:55 ごろ</em>。夕食前に湖畔へ出てグラデーションを鑑賞。<br>嫁ヶ島を望む絶景スポットはホテルからすぐ。</div>
+      </div>
+
+      <div class="tl-item accent-rust">
+        <div class="tl-time">19:00〜</div>
+        <div class="tl-place">🍽 皆美館　夕食</div>
+        <div class="tl-note">宍道湖七珍など地の幸を使った日本料理。<br>ラストオーダー 20:00。</div>
+      </div>
+    </div>
+
+    <div class="stay ryokan">
+      <div class="stay-label">宿泊 ｜ 旅のハイライト</div>
+      <div class="stay-name">皆美館（Minamikan）</div>
+      <div class="stay-detail">
+        <strong style="font-size:13px;color:#8c4a2f;">── 皆美館を120%楽しむポイント</strong><br><br>
+        🐟 <strong>名物・鯛めし</strong>　朝食の鯛めしは皆美館の代名詞。<br>
+        　　 鯛の刺身を卵・出汁醤油とともにご飯にかけて食べる出雲スタイル。<br><br>
+        🛁 <strong>朝風呂</strong>　早起きして朝の光の中でのお風呂が最高。<br>
+        　　 混雑前の静かな時間に、ゆったりと。<br><br>
+        🌅 <strong>夕焼け＋夕食タイミング</strong>　日没（18:55）を湖畔で見届けてから<br>
+        　　 19:00 に夕食へ。どちらも逃さないベストスケジュール。<br><br>
+        🚶 <strong>夜の松江散歩</strong>　チェックイン後は車を置いたまま城下町を夜散歩。<br>
+        　　 ライトアップされた松江城も見られる場合あり。
+      </div>
+    </div>
+  </div>
+
+  <!-- DAY 3 -->
+  <div class="day">
+    <div class="day-header d3">
+      <div class="day-number">DAY 03</div>
+      <div class="day-title">足立美術館　→　鳥取</div>
+      <div class="day-date">8月22日（土）</div>
+    </div>
+
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="tl-time">朝</div>
+        <div class="tl-place">🍳 皆美館　朝食・チェックアウト</div>
+        <div class="tl-note">名物・鯛めしの朝食をゆっくりと。<em>朝風呂</em>も忘れずに。</div>
+      </div>
+
+      <div class="tl-item accent-pine">
+        <div class="tl-time">10:00 ごろ</div>
+        <div class="tl-place">🖼 足立美術館　（安来市）</div>
+        <div class="tl-note">アメリカの日本庭園専門誌で <em>22年連続日本一</em> に選ばれた庭園。<br>横山大観コレクションなど近代日本画の名品も必見。<br>庭園は窓越し・額縁越しに観賞する独特の展示スタイル。</div>
+      </div>
+
+      <div class="transport">
+        <div class="transport-icon">🚗</div>
+        足立美術館 → 鳥取県立美術館（倉吉）　約1時間40分
+      </div>
+
+      <div class="tl-item accent-pine">
+        <div class="tl-time">13:30 ごろ</div>
+        <div class="tl-place">🏛 鳥取県立美術館　（倉吉）</div>
+        <div class="tl-note">2025年3月開館の新しい美術館。<br>白壁土蔵の街・倉吉に建つモダンな建築も見どころ。<br>カフェで休憩しながらゆっくりと。</div>
+      </div>
+
+      <div class="transport">
+        <div class="transport-icon">🚗</div>
+        倉吉 → 鳥取市内　約1時間
+      </div>
+
+      <div class="tl-item">
+        <div class="tl-time">16:00 ごろ</div>
+        <div class="tl-place">🏨 チェックイン　東横INN 鳥取駅北口</div>
+        <div class="tl-note">荷物を置いて、翌朝の砂丘に備えて英気を養う</div>
+      </div>
+
+      <div class="tl-item">
+        <div class="tl-time">夜</div>
+        <div class="tl-place">🦀 鳥取駅周辺で夕食</div>
+        <div class="tl-note">松葉ガニ（オフシーズンのため他の海鮮も）、鳥取牛など地元グルメを</div>
+      </div>
+    </div>
+
+    <div class="stay">
+      <div class="stay-label">宿泊</div>
+      <div class="stay-name">東横INN 鳥取駅北口</div>
+      <div class="stay-detail">素泊まり　／　翌朝は早起きして砂丘へ</div>
+    </div>
+  </div>
+
+  <!-- DAY 4 -->
+  <div class="day">
+    <div class="day-header d4">
+      <div class="day-number">DAY 04</div>
+      <div class="day-title">鳥取砂丘　→　帰路</div>
+      <div class="day-date">8月23日（日）</div>
+    </div>
+
+    <div class="timeline">
+      <div class="tl-item accent-sand">
+        <div class="tl-time">早朝（日の出前後）</div>
+        <div class="tl-place">🏜 鳥取砂丘</div>
+        <div class="tl-note">
+          <em>日中は砂の表面温度が60℃超</em>になるため、早朝訪問が絶対条件。<br>
+          朝の光が砂の稜線に影をつくり、最高の景観に。<br><br>
+          <strong style="color:#1e1e1e;font-size:12px;">砂丘のコツ</strong><br>
+          • 靴：スニーカー必須（サンダル不可）<br>
+          • 飲み物：早朝でも水分補給を忘れずに<br>
+          • カメラ：砂が入りやすいので注意
+        </div>
+      </div>
+
+      <div class="tl-item accent-sand">
+        <div class="tl-time">10:00〜</div>
+        <div class="tl-place">🏺 砂の美術館</div>
+        <div class="tl-note">世界の砂像を展示する屋外美術館。<br>毎年テーマが変わる大型砂像作品は圧巻。</div>
+      </div>
+
+      <div class="tl-item">
+        <div class="tl-time">12:00〜</div>
+        <div class="tl-place">🚗 ニッポンレンタカー　返却</div>
+        <div class="tl-note">4日間お疲れ様でした</div>
+      </div>
+
+      <div class="tl-item accent-sand">
+        <div class="tl-time">15:10</div>
+        <div class="tl-place">✈️ 鳥取砂丘コナン空港　出発</div>
+        <div class="tl-note">ANA / JAL</div>
+      </div>
+
+      <div class="tl-item accent-sand">
+        <div class="tl-time">16:40</div>
+        <div class="tl-place">🛬 羽田空港　到着</div>
+        <div class="tl-note">山陰の思い出を胸に、帰宅へ</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIPS -->
+  <div class="section-head">
+    <div class="section-label">Travel Tips</div>
+    <h2 class="section-title">旅のヒント</h2>
+  </div>
+
+  <div class="tips-grid">
+    <div class="tip-card">
+      <div class="tip-icon">🌡</div>
+      <div class="tip-title">夏の山陰の暑さ対策</div>
+      <div class="tip-body">8月は気温30℃超。PCMネッククーラー＋ネックファンの組み合わせが荷物を増やさず効果的。砂丘では帽子と日焼け止めも必須。</div>
+    </div>
+    <div class="tip-card">
+      <div class="tip-icon">👟</div>
+      <div class="tip-title">砂丘の靴</div>
+      <div class="tip-body">砂丘はスニーカーが必須。サンダルは熱・砂の侵入・斜面の滑りで危険。早朝のみ裸足も可（日中の砂は60℃超）。</div>
+    </div>
+    <div class="tip-card">
+      <div class="tip-icon">🚗</div>
+      <div class="tip-title">レンタカー移動</div>
+      <div class="tip-body">山陰は電車の本数が少なく、車が圧倒的に便利。駐車場は各スポットで無料〜低コスト。皆美館も無料駐車場あり。</div>
+    </div>
+    <div class="tip-card">
+      <div class="tip-icon">🍜</div>
+      <div class="tip-title">食べておきたいもの</div>
+      <div class="tip-body">出雲そば（割子そば）、宍道湖のシジミ汁、皆美館の鯛めし、鳥取の海鮮・鳥取牛。各地で地のものを楽しんで。</div>
+    </div>
+    <div class="tip-card">
+      <div class="tip-icon">🎒</div>
+      <div class="tip-title">持ち物メモ</div>
+      <div class="tip-body">機内持ち込み：3辺合計115cm以内、10kg以内。早朝行動が多いため、前夜のうちに翌日のバッグを準備しておくと楽。</div>
+    </div>
+    <div class="tip-card">
+      <div class="tip-icon">📸</div>
+      <div class="tip-title">写真スポット</div>
+      <div class="tip-body">宍道湖の夕焼け（嫁ヶ島越し）、砂丘の早朝稜線、足立美術館の庭園額縁、松江城天守からの眺め。</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <strong>島根・鳥取　旅のしおり 2026</strong>
+  8月20日（木）〜 8月23日（日）　3泊4日
+</footer>
+
+</body>
+</html>
