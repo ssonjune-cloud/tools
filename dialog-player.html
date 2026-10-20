@@ -19,6 +19,7 @@
     --text: #e8e8f0;
     --muted: #666676;
     --accent: #c8f76e;
+    --accent-dim: rgba(200,247,110,0.10);
     --error: #f77e7e;
     --radius: 14px;
   }
@@ -168,6 +169,30 @@
   }
   textarea::placeholder { color: var(--muted); }
 
+  #cache-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    border-top: 1px solid var(--border);
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+  #cache-info { flex: 1; }
+  #cache-clear {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    cursor: pointer;
+  }
+
   #load-btn {
     display: block;
     width: calc(100% - 32px);
@@ -289,6 +314,8 @@
     text-transform: uppercase;
   }
   .toggle-btn.on { background: var(--accent); border-color: transparent; color: #0f0f11; }
+  #role-btn.on.shu  { background: var(--shu); }
+  #role-btn.on.maya { background: var(--maya); }
 
   .ctrl-row-small {
     display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
@@ -346,6 +373,7 @@
   .turn.maya { border-left: 3px solid var(--maya); }
   .turn.playing.shu { background: var(--shu-dim); border-color: var(--shu); }
   .turn.playing.maya { background: var(--maya-dim); border-color: var(--maya); }
+  .turn.playing.yours-now { background: var(--accent-dim); border-color: var(--accent); }
 
   .turn-header {
     display: flex;
@@ -361,6 +389,22 @@
   }
   .turn.shu .turn-speaker { color: var(--shu); }
   .turn.maya .turn-speaker { color: var(--maya); }
+  .you-tag {
+    font-size: 0.55rem;
+    letter-spacing: 0.12em;
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+  }
+  .speak-now {
+    display: none;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .turn.playing.yours-now .speak-now { display: inline; }
   .turn-num { font-size: 0.6rem; color: var(--muted); margin-left: auto; }
 
   .turn-text {
@@ -416,8 +460,7 @@
     background: var(--accent);
     width: 0%;
   }
-  .turn.playing .playing-bar { animation: progress-pulse 1s ease-in-out infinite alternate; }
-  @keyframes progress-pulse { from { opacity: 0.5; } to { opacity: 1; } }
+  .turn:not(.playing) .playing-bar { width: 0% !important; }
 
   #status-bar {
     display: flex; align-items: center; justify-content: space-between;
@@ -499,6 +542,10 @@
     <span id="turn-count-label"></span>
   </div>
   <textarea id="dialog-input" placeholder="Shu: Hello, how's it going?&#10;Maya: Pretty good! I just finished the report.&#10;Shu: Oh nice, when did you finish it?"></textarea>
+  <div id="cache-row">
+    <span id="cache-info">Saved audio: —</span>
+    <button id="cache-clear">Clear</button>
+  </div>
 </div>
 <button id="load-btn">Load Dialog ↓</button>
 
@@ -567,6 +614,7 @@
         <button class="toggle-btn" id="repeat-btn">Repeat ×1</button>
         <button class="toggle-btn" id="auto-btn">Auto</button>
         <button class="toggle-btn" id="hide-btn">Show text</button>
+        <button class="toggle-btn" id="role-btn">Role: off</button>
       </div>
       <div class="pause-row">
         <label>Pause</label>
@@ -575,7 +623,7 @@
       </div>
     </div>
     <button id="dl-all-btn">
-      ↓ Download as MP3 <span id="dl-all-progress"></span>
+      ↓ Download all · WAV (1.0×) <span id="dl-all-progress"></span>
     </button>
   </div>
 
@@ -583,21 +631,36 @@
 
 <div id="empty-state">
   <div class="big">🎧</div>
-  <p>Enter your OpenAI API key above,<br>paste your Shu / Maya dialog,<br>and tap <strong>Load Dialog</strong></p>
+  <p>Paste your Shu / Maya dialog<br>and tap <strong>Load Dialog</strong>.<br>The API key is only needed for new audio.</p>
 </div>
 
 <script>
+// ═══════════════════════════════════════════
+//  Settings
+// ═══════════════════════════════════════════
+const MODEL = 'tts-1';
+const ROLE_FACTOR = 1.2;   // your silence = original length × 1.2
+const ROLE_MIN = 1.5;      // at least 1.5 s
+const DECODE_SR = 24000;   // tts-1 outputs 24 kHz
+
+// ═══════════════════════════════════════════
+//  State
+// ═══════════════════════════════════════════
 let turns = [];
-let audioCache = {};
 let currentIdx = 0;
-let isPlaying = false;
+let running = false;      // playback chain in progress (incl. loading / gaps)
+let finished = false;
 let repeatMode = 1;
 let autoPlay = false;
 let hideText = false;
 let pauseInterval = 1.0;
-let repeatCount = 0;
-let autoTimer = null;
-let currentAudio = null;
+let role = null;          // null | 'Shu' | 'Maya'
+
+let runId = 0;
+let cancelSeg = null;
+let segment = null;       // { kind: 'turn' | 'yours' | 'gap', idx }
+let ignorePauseUntil = 0;
+let unlocked = false;
 
 let totalEstSec = 0;
 let remainSec = 0;
@@ -605,12 +668,19 @@ let countdownTimer = null;
 let countdownRunning = false;
 let turnRemainCache = [];
 
+const $ = id => document.getElementById(id);
+const player = new Audio();
+player.preload = 'auto';
+
+// ═══════════════════════════════════════════
+//  API key
+// ═══════════════════════════════════════════
 let apiKey = localStorage.getItem('oai_key') || sessionStorage.getItem('oai_key') || '';
 
-const keyInput = document.getElementById('api-key-input');
-const keyStatus = document.getElementById('api-key-status');
-const keySection = document.getElementById('api-key-section');
-const saveKeyCheckbox = document.getElementById('save-key-checkbox');
+const keyInput = $('api-key-input');
+const keyStatus = $('api-key-status');
+const keySection = $('api-key-section');
+const saveKeyCheckbox = $('save-key-checkbox');
 
 saveKeyCheckbox.checked = !!localStorage.getItem('oai_key');
 
@@ -631,7 +701,6 @@ keyInput.addEventListener('input', e => {
     keyStatus.textContent = '—';
     keySection.classList.remove('valid', 'error');
   }
-  audioCache = {};
 });
 
 saveKeyCheckbox.addEventListener('change', () => {
@@ -649,60 +718,268 @@ function persistKey() {
   }
 }
 
-async function fetchTTS(text, voice, speed) {
+// ═══════════════════════════════════════════
+//  Persistent audio cache (IndexedDB)
+//  Key = model | voice | text  → same sentence is never paid for twice
+//  Audio is generated at 1.0×; speed is applied at playback
+// ═══════════════════════════════════════════
+let dbPromise = null;
+function openDB() {
+  if (!dbPromise) {
+    dbPromise = new Promise((res, rej) => {
+      if (!('indexedDB' in window)) return rej(new Error('IndexedDB unavailable'));
+      const r = indexedDB.open('dialog-player', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('clips');
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+  }
+  return dbPromise;
+}
+async function idbReq(mode, fn) {
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const t = db.transaction('clips', mode);
+    const r = fn(t.objectStore('clips'));
+    t.oncomplete = () => res(r ? r.result : undefined);
+    t.onerror = t.onabort = () => rej(t.error);
+  });
+}
+const idbGet   = k => idbReq('readonly',  s => s.get(k));
+const idbCount = k => idbReq('readonly',  s => s.count(k));
+const idbPut   = (k, v) => idbReq('readwrite', s => s.put(v, k));
+const idbClear = () => idbReq('readwrite', s => s.clear());
+async function idbStats() {
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    let n = 0, bytes = 0;
+    const t = db.transaction('clips', 'readonly');
+    const c = t.objectStore('clips').openCursor();
+    c.onsuccess = () => {
+      const cur = c.result;
+      if (cur) { n++; bytes += (cur.value && cur.value.buf) ? cur.value.buf.byteLength : 0; cur.continue(); }
+    };
+    t.oncomplete = () => res({ n, bytes });
+    t.onerror = () => rej(t.error);
+  });
+}
+
+let persistAsked = false;
+async function askPersist() {
+  if (persistAsked) return;
+  persistAsked = true;
+  try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) {}
+}
+
+const mem = new Map();       // key → { url, dur, buf }
+const inflight = new Map();  // key → Promise
+
+const who = t => t.speaker.toLowerCase();
+const clipKey = t => `${MODEL}|${getVoice(who(t))}|${t.text}`;
+const isMine = i => !!role && turns[i] && turns[i].speaker === role;
+
+async function fetchTTS(text, voice) {
   const res = await fetch('https://api.openai.com/v1/audio/speech', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: 'tts-1', input: text, voice, speed })
+    body: JSON.stringify({ model: MODEL, input: text, voice })
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err?.error?.message || `HTTP ${res.status}`);
   }
-  return URL.createObjectURL(await res.blob());
+  return await res.arrayBuffer();
 }
 
-['shu','maya'].forEach(who => {
-  document.getElementById(`${who}-rate`).addEventListener('input', e => {
-    document.getElementById(`${who}-rate-val`).textContent = parseFloat(e.target.value).toFixed(2) + '×';
-    audioCache = {};
-    if (turns.length) { recalc(); }
+let decodeCtx = null;
+function decodeBuf(buf) {
+  const C = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if (!decodeCtx) decodeCtx = new C(1, 1, DECODE_SR);
+  return new Promise((res, rej) => {
+    const p = decodeCtx.decodeAudioData(buf.slice(0), res, rej);
+    if (p && p.catch) p.catch(rej);
+  });
+}
+
+function wordEstimate(text) {
+  return text.trim().split(/\s+/).length / 150 * 60;
+}
+
+function getClip(t) {
+  const key = clipKey(t);
+  if (mem.has(key)) return Promise.resolve(mem.get(key));
+  if (inflight.has(key)) return inflight.get(key);
+  const voice = getVoice(who(t));
+  const p = (async () => {
+    let rec = null;
+    try { rec = await idbGet(key); } catch (e) {}
+    if (!rec) {
+      if (!apiKey) throw new Error('API key needed for new audio');
+      const buf = await fetchTTS(t.text, voice);
+      let dur;
+      try { dur = (await decodeBuf(buf)).duration; } catch (e) { dur = wordEstimate(t.text); }
+      rec = { buf, dur, created: Date.now() };
+      idbPut(key, rec).then(() => { askPersist(); updateCacheInfo(); }).catch(() => {});
+    }
+    const url = URL.createObjectURL(new Blob([rec.buf], { type: 'audio/mpeg' }));
+    const clip = { url, dur: rec.dur, buf: rec.buf };
+    mem.set(key, clip);
+    return clip;
+  })();
+  inflight.set(key, p);
+  p.finally(() => inflight.delete(key)).catch(() => {});
+  return p;
+}
+
+// Load already-saved clips for the current dialog (local only, no API calls)
+async function warmFromDB() {
+  for (const t of turns) {
+    const key = clipKey(t);
+    if (mem.has(key)) continue;
+    try { if (await idbCount(key)) await getClip(t); } catch (e) {}
+  }
+  refreshDownloadButtons();
+  recalc();
+}
+
+async function updateCacheInfo() {
+  const el = $('cache-info');
+  try {
+    const { n, bytes } = await idbStats();
+    el.textContent = `Saved audio: ${n} clips · ${(bytes / 1048576).toFixed(1)} MB`;
+  } catch (e) {
+    el.textContent = 'Saved audio: unavailable (private mode?)';
+  }
+}
+
+$('cache-clear').addEventListener('click', async () => {
+  if (!confirm('Delete all saved audio?\n(It will be regenerated via the API when played.)')) return;
+  halt(); setPlayState('stopped');
+  try { await idbClear(); } catch (e) {}
+  mem.forEach(c => URL.revokeObjectURL(c.url));
+  mem.clear();
+  refreshDownloadButtons();
+  updateCacheInfo();
+});
+
+// ═══════════════════════════════════════════
+//  Silence (for gaps and your turns, played on the same player)
+// ═══════════════════════════════════════════
+function writeStr(v, o, s) { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); }
+function writeWavHeader(v, frames, sr) {
+  const bytes = frames * 2;
+  writeStr(v, 0, 'RIFF'); v.setUint32(4, 36 + bytes, true);
+  writeStr(v, 8, 'WAVE'); writeStr(v, 12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  writeStr(v, 36, 'data'); v.setUint32(40, bytes, true);
+}
+const silenceUrls = new Map();
+function silenceUrl(sec) {
+  const s = Math.max(0.1, Math.round(sec * 10) / 10);
+  if (silenceUrls.has(s)) return silenceUrls.get(s);
+  const sr = 8000, n = Math.round(s * sr);
+  const buf = new ArrayBuffer(44 + n * 2);
+  writeWavHeader(new DataView(buf), n, sr);
+  const url = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+  silenceUrls.set(s, url);
+  return url;
+}
+
+// ═══════════════════════════════════════════
+//  Settings persistence (voices, speeds, pause) + last dialog
+// ═══════════════════════════════════════════
+function saveSettings() {
+  try {
+    localStorage.setItem('dp_settings', JSON.stringify({
+      shuVoice: getVoice('shu'), mayaVoice: getVoice('maya'),
+      shuRate: getRate('shu'), mayaRate: getRate('maya'),
+      pause: pauseInterval
+    }));
+  } catch (e) {}
+}
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem('dp_settings') || 'null');
+    if (s) {
+      if (s.shuVoice) $('shu-voice').value = s.shuVoice;
+      if (s.mayaVoice) $('maya-voice').value = s.mayaVoice;
+      if (s.shuRate) $('shu-rate').value = s.shuRate;
+      if (s.mayaRate) $('maya-rate').value = s.mayaRate;
+      if (typeof s.pause === 'number') { $('pause-slider').value = s.pause; pauseInterval = s.pause; }
+    }
+    const d = localStorage.getItem('dp_dialog');
+    if (d) $('dialog-input').value = d;
+  } catch (e) {}
+  ['shu', 'maya'].forEach(w => $(`${w}-rate-val`).textContent = getRate(w).toFixed(2) + '×');
+  $('pause-val').textContent = pauseInterval.toFixed(1) + 's';
+}
+
+function getRate(w) { return parseFloat($(`${w}-rate`).value); }
+function getVoice(w) { return $(`${w}-voice`).value; }
+
+['shu', 'maya'].forEach(w => {
+  $(`${w}-rate`).addEventListener('input', e => {
+    const r = parseFloat(e.target.value);
+    $(`${w}-rate-val`).textContent = r.toFixed(2) + '×';
+    // Applies instantly — no re-fetch needed
+    if (segment && segment.kind === 'turn' && turns[segment.idx] && who(turns[segment.idx]) === w) {
+      player.playbackRate = r;
+    }
+    saveSettings();
+    if (turns.length) recalc();
+  });
+  $(`${w}-voice`).addEventListener('change', () => {
+    saveSettings();
+    if (!turns.length) return;
+    refreshDownloadButtons();
+    warmFromDB();
   });
 });
 
-document.getElementById('pause-slider').addEventListener('input', e => {
+$('pause-slider').addEventListener('input', e => {
   pauseInterval = parseFloat(e.target.value);
-  document.getElementById('pause-val').textContent = pauseInterval.toFixed(1) + 's';
-  if (turns.length) { recalc(); }
+  $('pause-val').textContent = pauseInterval.toFixed(1) + 's';
+  saveSettings();
+  if (turns.length) recalc();
 });
 
-function recalc() {
-  totalEstSec = calcTotalSec();
-  buildTurnRemainCache();
-  if (!countdownRunning) remainSec = turnRemainCache[currentIdx] ?? totalEstSec;
-  document.getElementById('status-total').textContent = fmtTime(totalEstSec).replace('-','') + ' total';
-  updateCountdownDisplay();
+// ═══════════════════════════════════════════
+//  Countdown
+// ═══════════════════════════════════════════
+function baseDur(t) {
+  const c = mem.get(clipKey(t));
+  return c ? c.dur : wordEstimate(t.text);
 }
-
-function estimateTurnSec(text, rate) {
-  return (text.trim().split(/\s+/).length / (150 * rate)) * 60;
+function turnWallSec(i) {
+  const t = turns[i];
+  const s = baseDur(t) / getRate(who(t));
+  return isMine(i) ? Math.max(ROLE_MIN, s * ROLE_FACTOR) : s;
 }
 function calcTotalSec() {
   let total = 0;
-  turns.forEach(t => { total += estimateTurnSec(t.text, getRate(t.speaker.toLowerCase())) + pauseInterval; });
+  turns.forEach((t, i) => { total += turnWallSec(i) + pauseInterval; });
   return total;
 }
 function buildTurnRemainCache() {
   turnRemainCache = [];
   let remain = totalEstSec;
-  turns.forEach(t => {
+  turns.forEach((t, i) => {
     turnRemainCache.push(remain);
-    remain -= estimateTurnSec(t.text, getRate(t.speaker.toLowerCase())) + pauseInterval;
+    remain -= turnWallSec(i) + pauseInterval;
   });
+}
+function recalc() {
+  totalEstSec = calcTotalSec();
+  buildTurnRemainCache();
+  if (!countdownRunning) remainSec = turnRemainCache[currentIdx] ?? totalEstSec;
+  $('status-total').textContent = fmtTime(totalEstSec).replace('-', '') + ' total';
+  updateCountdownDisplay();
 }
 function fmtTime(sec) {
   const s = Math.max(0, Math.ceil(sec));
-  return `-${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+  return `-${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 function startCountdown() {
   if (countdownRunning) return;
@@ -716,12 +993,15 @@ function pauseCountdown() {
 }
 function resetCountdown() { pauseCountdown(); remainSec = totalEstSec; updateCountdownDisplay(); }
 function updateCountdownDisplay() {
-  const el = document.getElementById('status-countdown');
+  const el = $('status-countdown');
   if (!el || totalEstSec === 0) return;
   el.textContent = fmtTime(remainSec);
   el.classList.toggle('near-end', remainSec <= 10 && countdownRunning);
 }
 
+// ═══════════════════════════════════════════
+//  Dialog parsing & rendering
+// ═══════════════════════════════════════════
 function parseDialog(text) {
   return text.trim().split('\n')
     .map(line => line.match(/^(Shu|Maya)\s*:\s*(.+)/i))
@@ -729,18 +1009,24 @@ function parseDialog(text) {
     .map(m => ({ speaker: m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase(), text: m[2].trim() }));
 }
 
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function renderTurns() {
-  const list = document.getElementById('turn-list');
+  const list = $('turn-list');
   list.innerHTML = '';
   turns.forEach((t, i) => {
     const div = document.createElement('div');
-    div.className = `turn ${t.speaker.toLowerCase()}`;
+    div.className = `turn ${who(t)}${isMine(i) ? ' mine' : ''}`;
     div.dataset.idx = i;
-    const fname = `turn_${String(i+1).padStart(2,'0')}_${t.speaker.toLowerCase()}.mp3`;
+    const fname = `turn_${String(i + 1).padStart(2, '0')}_${who(t)}.mp3`;
     div.innerHTML = `
       <div class="turn-header">
         <span class="turn-speaker">${t.speaker}</span>
-        <span class="turn-num">#${i+1}</span>
+        ${isMine(i) ? '<span class="you-tag">YOU</span>' : ''}
+        <span class="speak-now">🎙 speak now</span>
+        <span class="turn-num">#${i + 1}</span>
       </div>
       <div class="turn-text">${hideText ? '・・・' : escHtml(t.text)}</div>
       <div class="turn-footer">
@@ -749,309 +1035,431 @@ function renderTurns() {
       <div class="playing-bar"></div>`;
     div.addEventListener('click', e => {
       if (e.target.closest('.dl-btn')) return;
-      jumpTo(i);
+      unlock();
+      run(i);
     });
     list.appendChild(div);
   });
   refreshDownloadButtons();
 }
 
-function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
 function refreshDownloadButtons() {
   document.querySelectorAll('.dl-btn').forEach(btn => {
-    const idx = parseInt(btn.dataset.idx);
-    const t = turns[idx];
-    const who = t.speaker.toLowerCase();
-    const cacheKey = `${idx}_${getVoice(who)}_${getRate(who)}`;
-    const url = audioCache[cacheKey];
-    if (url && url !== 'error') { btn.href = url; btn.classList.add('ready'); }
-    else { btn.classList.remove('ready'); }
+    const t = turns[parseInt(btn.dataset.idx)];
+    const clip = t && mem.get(clipKey(t));
+    if (clip) { btn.href = clip.url; btn.classList.add('ready'); }
+    else { btn.removeAttribute('href'); btn.classList.remove('ready'); }
   });
 }
 
-document.getElementById('load-btn').addEventListener('click', () => {
-  if (!apiKey || !apiKey.startsWith('sk-')) {
-    keySection.classList.add('error'); keyStatus.textContent = '!'; keyInput.focus(); return;
-  }
-  const raw = document.getElementById('dialog-input').value;
-  const newTurns = parseDialog(raw);
-  if (!newTurns.length) { alert('No turns found.\nFormat: Shu: ... or Maya: ...'); return; }
-  // テキストが変わったターンのキャッシュだけ削除（同じなら再利用）
-  newTurns.forEach((t, i) => {
-    if (!turns[i] || turns[i].text !== t.text || turns[i].speaker !== t.speaker) {
-      Object.keys(audioCache).filter(k => k.startsWith(`${i}_`)).forEach(k => delete audioCache[k]);
-    }
+function highlightTurn(idx, scroll = true) {
+  document.querySelectorAll('.turn').forEach((el, i) => {
+    el.classList.toggle('playing', i === idx);
+    if (i !== idx) el.classList.remove('yours-now');
+    const bar = el.querySelector('.playing-bar');
+    if (bar) bar.style.width = '0%';
   });
-  for (let i = newTurns.length; i < turns.length; i++) {
-    Object.keys(audioCache).filter(k => k.startsWith(`${i}_`)).forEach(k => delete audioCache[k]);
-  }
-  turns = newTurns;
-  currentIdx = 0; repeatCount = 0;
-  renderTurns();
-  document.getElementById('empty-state').style.display = 'none';
-  document.getElementById('input-section').style.display = 'none';
-  document.getElementById('load-btn').style.display = 'none';
-  document.getElementById('edit-btn').classList.add('visible');
-  document.getElementById('player-section').classList.add('visible');
-  document.getElementById('turn-count-label').textContent = `${turns.length} turns`;
-  totalEstSec = calcTotalSec();
-  buildTurnRemainCache();
-  resetCountdown();
-  document.getElementById('status-total').textContent = fmtTime(totalEstSec).replace('-','') + ' total';
-  updateStatus();
-  scrollToTurn(0);
-});
-
-function getRate(who) { return parseFloat(document.getElementById(`${who}-rate`).value); }
-function getVoice(who) { return document.getElementById(`${who}-voice`).value; }
-
-async function playTurn(idx) {
-  stopAudio(); clearTimeout(autoTimer); pauseCountdown();
-  if (idx < 0 || idx >= turns.length) return;
-  currentIdx = idx;
-  if (turnRemainCache.length > idx) { remainSec = turnRemainCache[idx]; updateCountdownDisplay(); }
-  highlightTurn(idx); updateStatus();
-
-  const t = turns[idx];
-  const who = t.speaker.toLowerCase();
-  const cacheKey = `${idx}_${getVoice(who)}_${getRate(who)}`;
-  setPlayState('loading');
-
-  let audioUrl;
-  try {
-    if (audioCache[cacheKey] && audioCache[cacheKey] !== 'error') {
-      audioUrl = audioCache[cacheKey];
-    } else {
-      audioUrl = await fetchTTS(t.text, getVoice(who), getRate(who));
-      audioCache[cacheKey] = audioUrl;
-      refreshDownloadButtons();
-    }
-  } catch(e) {
-    audioCache[cacheKey] = 'error';
-    setPlayState('stopped');
-    updateStatus(`Error: ${e.message}`);
-    keySection.classList.add('error');
-    return;
-  }
-
-  const audio = new Audio(audioUrl);
-  currentAudio = audio;
-  audio.onplay = () => { setPlayState('playing'); startCountdown(); };
-  audio.onended = () => { setPlayState('stopped'); handleEnd(); };
-  audio.onerror = () => { setPlayState('stopped'); handleEnd(); };
-  audio.play().catch(() => { setPlayState('stopped'); updateStatus('Playback error'); });
-}
-
-function stopAudio() {
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio.onplay = currentAudio.onended = currentAudio.onerror = null;
-    currentAudio = null;
-  }
-}
-
-function handleEnd() {
-  const maxRepeat = repeatMode === 999 ? Infinity : repeatMode;
-  repeatCount++;
-  if (repeatCount < maxRepeat) {
-    autoTimer = setTimeout(() => playTurn(currentIdx), pauseInterval * 1000);
-  } else {
-    repeatCount = 0;
-    if (autoPlay) {
-      if (currentIdx + 1 < turns.length) {
-        autoTimer = setTimeout(() => playTurn(currentIdx + 1), pauseInterval * 1000);
-      } else {
-        pauseCountdown(); remainSec = 0; updateCountdownDisplay();
-        updateStatus('finished'); isPlaying = false;
-      }
-    } else {
-      pauseCountdown(); isPlaying = false; updateStatus();
-    }
-  }
-}
-
-function setPlayState(state) {
-  document.getElementById('play-icon').style.display    = state === 'stopped' ? 'block' : 'none';
-  document.getElementById('pause-icon').style.display   = state === 'playing' ? 'block' : 'none';
-  document.getElementById('loading-icon').style.display = state === 'loading' ? 'block' : 'none';
-  document.getElementById('play-btn').classList.toggle('loading', state === 'loading');
-  isPlaying = state === 'playing';
-}
-
-function highlightTurn(idx) {
-  document.querySelectorAll('.turn').forEach((el, i) => el.classList.toggle('playing', i === idx));
-  scrollToTurn(idx);
+  if (scroll) scrollToTurn(idx);
 }
 
 function scrollToTurn(idx) {
-  const container = document.getElementById('turn-scroll');
+  const container = $('turn-scroll');
   const el = document.querySelector(`.turn[data-idx="${idx}"]`);
   if (!el || !container) return;
   container.scrollTo({ top: el.offsetTop - container.offsetTop - 8, behavior: 'smooth' });
 }
 
-function jumpTo(idx) { repeatCount = 0; isPlaying = true; playTurn(idx); }
+function setYoursNow(idx, on) {
+  const el = document.querySelector(`.turn[data-idx="${idx}"]`);
+  if (el) el.classList.toggle('yours-now', on);
+}
 
-document.getElementById('play-btn').addEventListener('click', () => {
+// Progress bar on the current card
+(function tick() {
+  requestAnimationFrame(tick);
+  if (!segment || document.hidden) return;
+  const bar = document.querySelector(`.turn[data-idx="${segment.idx}"] .playing-bar`);
+  if (!bar) return;
+  if (segment.kind === 'gap') { bar.style.width = '100%'; return; }
+  const d = player.duration;
+  if (d && isFinite(d)) bar.style.width = Math.min(100, player.currentTime / d * 100) + '%';
+})();
+
+// ═══════════════════════════════════════════
+//  Playback engine
+//  One <audio> element plays everything (turns, gaps, your-turn silences)
+//  and chains via 'ended' events — no timers — so it keeps going with the screen off.
+// ═══════════════════════════════════════════
+const CANCEL = Symbol('cancel');
+function alive(id) { if (id !== runId) throw CANCEL; }
+
+function setPitch() {
+  player.preservesPitch = true;
+  player.webkitPreservesPitch = true;
+  player.mozPreservesPitch = true;
+}
+
+function stopPlayer() {
+  ignorePauseUntil = performance.now() + 600;
+  player.onended = player.onerror = null;
+  if (!player.paused) player.pause();
+  segment = null;
+}
+
+function halt() {
+  runId++;
+  running = false;
+  if (cancelSeg) { const c = cancelSeg; cancelSeg = null; c(); }
+  stopPlayer();
+  pauseCountdown();
+}
+
+function playSeg(url, rate, id, seg) {
+  return new Promise((resolve, reject) => {
+    cancelSeg = () => reject(CANCEL);
+    ignorePauseUntil = performance.now() + 600;
+    segment = seg;
+    player.onended = () => { if (id === runId) { cancelSeg = null; resolve(); } };
+    player.onerror = () => { if (id === runId) { cancelSeg = null; reject(new Error('Playback error')); } };
+    player.src = url;
+    player.defaultPlaybackRate = rate;
+    player.playbackRate = rate;
+    setPitch();
+    player.play().then(() => {
+      if (id !== runId) return;
+      setPlayState('playing');
+      startCountdown();
+      setMsState('playing');
+    }).catch(err => { if (id === runId) { cancelSeg = null; reject(err); } });
+  });
+}
+
+async function gap(id) {
+  if (pauseInterval <= 0) return;
+  await playSeg(silenceUrl(pauseInterval), 1, id, { kind: 'gap', idx: currentIdx });
+  alive(id);
+}
+
+function prefetchAhead(idx) {
+  if (!autoPlay) return;
+  for (let j = idx + 1; j <= idx + 3 && j < turns.length; j++) {
+    const t = turns[j];
+    if (mem.has(clipKey(t))) continue;
+    getClip(t).then(() => { refreshDownloadButtons(); recalc(); }).catch(() => {});
+  }
+}
+
+async function playTurnOnce(idx, id) {
+  currentIdx = idx;
+  highlightTurn(idx, !document.hidden);
+  updateStatus();
+  setMediaMeta(idx);
+  if (turnRemainCache.length > idx) { remainSec = turnRemainCache[idx]; updateCountdownDisplay(); }
+
+  const t = turns[idx];
+  let clip = mem.get(clipKey(t));
+  if (!clip) {
+    setPlayState('loading');
+    pauseCountdown();
+    clip = await getClip(t);
+    alive(id);
+    refreshDownloadButtons();
+    recalc();
+    remainSec = turnRemainCache[idx] ?? remainSec;
+  }
+  prefetchAhead(idx);
+
+  const rate = getRate(who(t));
+  if (isMine(idx)) {
+    setYoursNow(idx, true);
+    updateStatus('🎙 Your turn');
+    const wall = Math.max(ROLE_MIN, clip.dur / rate * ROLE_FACTOR);
+    await playSeg(silenceUrl(wall), 1, id, { kind: 'yours', idx });
+    setYoursNow(idx, false);
+  } else {
+    await playSeg(clip.url, rate, id, { kind: 'turn', idx });
+  }
+  alive(id);
+}
+
+async function run(startIdx) {
   if (!turns.length) return;
-  if (currentAudio && !currentAudio.paused) {
-    stopAudio(); pauseCountdown(); setPlayState('stopped');
-    document.querySelectorAll('.turn').forEach(el => el.classList.remove('playing'));
-    updateStatus('paused');
-  } else { repeatCount = 0; playTurn(currentIdx); }
+  halt();
+  const id = runId;
+  running = true;
+  finished = false;
+  currentIdx = Math.max(0, Math.min(turns.length - 1, startIdx));
+  try {
+    for (;;) {
+      let rep = 0;
+      for (;;) {
+        await playTurnOnce(currentIdx, id);
+        rep++;
+        const maxRep = repeatMode === 999 ? Infinity : repeatMode;
+        if (rep >= maxRep) break;
+        await gap(id);
+      }
+      if (!autoPlay) break;
+      if (currentIdx + 1 >= turns.length) { finished = true; break; }
+      await gap(id);
+      currentIdx++;
+    }
+    // Reached the end normally
+    running = false;
+    segment = null;
+    pauseCountdown();
+    setPlayState('stopped');
+    setMsState('paused');
+    if (finished) { remainSec = 0; updateCountdownDisplay(); updateStatus('finished'); }
+    else updateStatus();
+  } catch (e) {
+    if (e === CANCEL) return;
+    running = false;
+    segment = null;
+    stopPlayer();
+    pauseCountdown();
+    setPlayState('stopped');
+    setMsState('paused');
+    updateStatus(`Error: ${e.message || e}`);
+    if (/key|401|auth|incorrect/i.test(String(e.message))) {
+      keySection.classList.add('error');
+      keyStatus.textContent = '!';
+    }
+  }
+}
+
+function pauseNow() {
+  halt();
+  setPlayState('stopped');
+  setMsState('paused');
+  updateStatus('paused');
+}
+
+function togglePlay() {
+  if (!turns.length) return;
+  if (running) pauseNow();
+  else run(finished ? 0 : currentIdx);
+}
+function prevTurn() { if (turns.length) run(Math.max(0, currentIdx - 1)); }
+function nextTurn() { if (turns.length) run(Math.min(turns.length - 1, currentIdx + 1)); }
+
+// iOS: "unlock" the shared player inside the tap so later play() calls are allowed
+function unlock() {
+  if (unlocked) return;
+  unlocked = true;
+  try {
+    player.src = silenceUrl(0.1);
+    const p = player.play();
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) {}
+}
+
+// Paused by the OS (call, headphones unplugged, etc.)
+player.addEventListener('pause', () => {
+  if (running && !player.ended && performance.now() > ignorePauseUntil) pauseNow();
 });
 
-document.getElementById('prev-btn').addEventListener('click', () => {
-  if (!turns.length) return;
-  repeatCount = 0; playTurn(Math.max(0, currentIdx - 1));
+function setPlayState(state) {
+  $('play-icon').style.display    = state === 'stopped' ? 'block' : 'none';
+  $('pause-icon').style.display   = state === 'playing' ? 'block' : 'none';
+  $('loading-icon').style.display = state === 'loading' ? 'block' : 'none';
+  $('play-btn').classList.toggle('loading', state === 'loading');
+}
+
+// ═══════════════════════════════════════════
+//  Lock screen / notification controls (Media Session)
+// ═══════════════════════════════════════════
+function setMediaMeta(i) {
+  if (!('mediaSession' in navigator) || !window.MediaMetadata) return;
+  const t = turns[i];
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: hideText ? `Turn ${i + 1} / ${turns.length}` : t.text.slice(0, 100),
+      artist: isMine(i) ? `${t.speaker} — your turn` : t.speaker,
+      album: `Dialog Player · ${i + 1}/${turns.length}`
+    });
+  } catch (e) {}
+}
+function setMsState(s) {
+  try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = s; } catch (e) {}
+}
+if ('mediaSession' in navigator) {
+  const ms = navigator.mediaSession;
+  const handlers = {
+    play: () => { if (!running) run(finished ? 0 : currentIdx); },
+    pause: () => { if (running) pauseNow(); },
+    stop: () => { if (running) pauseNow(); },
+    previoustrack: prevTurn,
+    nexttrack: nextTurn,
+  };
+  for (const [action, fn] of Object.entries(handlers)) {
+    try { ms.setActionHandler(action, fn); } catch (e) {}
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && turns.length && (running || segment)) highlightTurn(currentIdx);
 });
 
-document.getElementById('next-btn').addEventListener('click', () => {
-  if (!turns.length) return;
-  repeatCount = 0; playTurn(Math.min(turns.length - 1, currentIdx + 1));
+// ═══════════════════════════════════════════
+//  Buttons
+// ═══════════════════════════════════════════
+$('load-btn').addEventListener('click', () => {
+  const raw = $('dialog-input').value;
+  const newTurns = parseDialog(raw);
+  if (!newTurns.length) { alert('No turns found.\nFormat: Shu: ... or Maya: ...'); return; }
+  halt();
+  setPlayState('stopped');
+  try { localStorage.setItem('dp_dialog', raw); } catch (e) {}
+  turns = newTurns;
+  currentIdx = 0;
+  finished = false;
+  renderTurns();
+  $('empty-state').style.display = 'none';
+  $('input-section').style.display = 'none';
+  $('load-btn').style.display = 'none';
+  $('edit-btn').classList.add('visible');
+  $('player-section').classList.add('visible');
+  $('turn-count-label').textContent = `${turns.length} turns`;
+  recalc();
+  resetCountdown();
+  updateStatus();
+  scrollToTurn(0);
+  warmFromDB();
 });
 
-document.getElementById('repeat-btn').addEventListener('click', () => {
+$('play-btn').addEventListener('click', () => { unlock(); togglePlay(); });
+$('prev-btn').addEventListener('click', () => { unlock(); prevTurn(); });
+$('next-btn').addEventListener('click', () => { unlock(); nextTurn(); });
+
+$('repeat-btn').addEventListener('click', () => {
   if (repeatMode === 1) repeatMode = 3;
   else if (repeatMode === 3) repeatMode = 999;
   else repeatMode = 1;
-  const btn = document.getElementById('repeat-btn');
+  const btn = $('repeat-btn');
   btn.textContent = repeatMode === 999 ? 'Repeat ∞' : `Repeat ×${repeatMode}`;
   btn.classList.toggle('on', repeatMode !== 1);
 });
 
-document.getElementById('auto-btn').addEventListener('click', () => {
-  autoPlay = !autoPlay;
-  document.getElementById('auto-btn').classList.toggle('on', autoPlay);
-});
+function setAuto(on) {
+  autoPlay = on;
+  $('auto-btn').classList.toggle('on', autoPlay);
+}
+$('auto-btn').addEventListener('click', () => setAuto(!autoPlay));
 
-document.getElementById('hide-btn').addEventListener('click', () => {
+$('hide-btn').addEventListener('click', () => {
   hideText = !hideText;
-  const btn = document.getElementById('hide-btn');
+  const btn = $('hide-btn');
   btn.textContent = hideText ? 'Hide text' : 'Show text';
   btn.classList.toggle('on', hideText);
-  if (turns.length) renderTurns();
-  if (isPlaying) highlightTurn(currentIdx);
+  if (!turns.length) return;
+  renderTurns();
+  if (running || segment) highlightTurn(currentIdx, false);
+  setMediaMeta(currentIdx);
 });
 
-document.getElementById('edit-btn').addEventListener('click', () => {
-  document.getElementById('input-section').style.display = '';
-  document.getElementById('load-btn').style.display = '';
-  document.getElementById('edit-btn').classList.remove('visible');
-  document.getElementById('player-section').classList.remove('visible');
-  document.getElementById('empty-state').style.display = 'none';
+$('role-btn').addEventListener('click', () => {
+  role = role === null ? 'Shu' : role === 'Shu' ? 'Maya' : null;
+  const btn = $('role-btn');
+  btn.textContent = role ? `Role: ${role}` : 'Role: off';
+  btn.classList.toggle('on', !!role);
+  btn.classList.toggle('shu', role === 'Shu');
+  btn.classList.toggle('maya', role === 'Maya');
+  if (role && !autoPlay) setAuto(true);   // roleplay only makes sense as a flowing conversation
+  if (!turns.length) return;
+  renderTurns();
+  if (running || segment) highlightTurn(currentIdx, false);
+  recalc();
+});
+
+$('edit-btn').addEventListener('click', () => {
+  $('input-section').style.display = '';
+  $('load-btn').style.display = '';
+  $('edit-btn').classList.remove('visible');
+  $('player-section').classList.remove('visible');
+  $('empty-state').style.display = 'none';
+  updateCacheInfo();
 });
 
 function updateStatus(msg) {
-  const left = document.getElementById('status-left');
+  const left = $('status-left');
   if (!left) return;
   if (typeof msg === 'string') { left.textContent = msg; return; }
   if (!turns.length) { left.textContent = '—'; return; }
   left.textContent = `${currentIdx + 1} / ${turns.length}  ·  ${turns[currentIdx].speaker}`;
 }
 
-// ─── 一括ダウンロード ───
-document.getElementById('dl-all-btn').addEventListener('click', async () => {
-  const btn = document.getElementById('dl-all-btn');
-  const prog = document.getElementById('dl-all-progress');
-  if (!turns.length) return;
-  if (btn.classList.contains('loading')) return;
+// ═══════════════════════════════════════════
+//  Download all → one WAV
+//  decode each clip → join with pause gaps → 16-bit PCM WAV
+//  With Role on, your lines become silence (roleplay track)
+// ═══════════════════════════════════════════
+$('dl-all-btn').addEventListener('click', async () => {
+  const btn = $('dl-all-btn');
+  const prog = $('dl-all-progress');
+  if (!turns.length || btn.classList.contains('loading')) return;
 
   btn.classList.add('loading');
   prog.textContent = `0 / ${turns.length}`;
 
-  const buffers = [];
-  let done = 0;
+  const parts = [];   // Float32Array or number (silent samples)
+  let firstError = null;
 
   for (let i = 0; i < turns.length; i++) {
     const t = turns[i];
-    const who = t.speaker.toLowerCase();
-    const cacheKey = `${i}_${getVoice(who)}_${getRate(who)}`;
-
     try {
-      let audioUrl;
-      if (audioCache[cacheKey] && audioCache[cacheKey] !== 'error') {
-        audioUrl = audioCache[cacheKey];
+      const clip = await getClip(t);
+      if (isMine(i)) {
+        parts.push(Math.round(Math.max(ROLE_MIN, clip.dur * ROLE_FACTOR) * DECODE_SR));
       } else {
-        audioUrl = await fetchTTS(t.text, getVoice(who), getRate(who));
-        audioCache[cacheKey] = audioUrl;
-        refreshDownloadButtons();
+        const ab = await decodeBuf(clip.buf);
+        parts.push(ab.getChannelData(0));
       }
-      const res = await fetch(audioUrl);
-      const buf = await res.arrayBuffer();
-      buffers.push(buf);
-
-      // ターン間の無音を挿入（pauseInterval秒）
-      if (i < turns.length - 1 && pauseInterval > 0) {
-        buffers.push(makeSilenceMP3(pauseInterval));
-      }
-    } catch(e) {
-      console.warn(`Turn ${i+1} error:`, e.message);
+      if (i < turns.length - 1 && pauseInterval > 0) parts.push(Math.round(pauseInterval * DECODE_SR));
+    } catch (e) {
+      console.warn(`Turn ${i + 1} error:`, e.message);
+      firstError = firstError || e;
     }
+    prog.textContent = `${i + 1} / ${turns.length}`;
+  }
+  refreshDownloadButtons();
 
-    done++;
-    prog.textContent = `${done} / ${turns.length}`;
+  const frames = parts.reduce((s, p) => s + (typeof p === 'number' ? p : p.length), 0);
+  if (!frames) {
+    btn.classList.remove('loading');
+    prog.textContent = '';
+    updateStatus(`Error: ${firstError ? firstError.message : 'no audio'}`);
+    return;
+  }
+  const out = new ArrayBuffer(44 + frames * 2);
+  const view = new DataView(out);
+  writeWavHeader(view, frames, DECODE_SR);
+  let off = 44;
+  for (const p of parts) {
+    if (typeof p === 'number') { off += p * 2; continue; }
+    for (let k = 0; k < p.length; k++) {
+      const s = Math.max(-1, Math.min(1, p[k]));
+      view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      off += 2;
+    }
   }
 
-  // 全バッファを結合して1つのMP3に
-  const total = buffers.reduce((s, b) => s + b.byteLength, 0);
-  const merged = new Uint8Array(total);
-  let offset = 0;
-  for (const buf of buffers) {
-    merged.set(new Uint8Array(buf), offset);
-    offset += buf.byteLength;
-  }
-
-  const blob = new Blob([merged], { type: 'audio/mpeg' });
-  const url = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(new Blob([out], { type: 'audio/wav' }));
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'dialog.mp3';
+  a.download = role ? `dialog_roleplay_${role.toLowerCase()}.wav` : 'dialog.wav';
   a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 
   btn.classList.remove('loading');
   prog.textContent = '';
 });
 
-// MP3形式の無音フレームを生成（近似：無音フレームを繰り返す）
-function makeSilenceMP3(seconds) {
-  // 128kbps MP3の無音フレーム (1フレーム = 26ms @ 44100Hz)
-  const silentFrame = new Uint8Array([
-    0xFF,0xFB,0x90,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
-  ]); // 約26ms/フレーム
-  const framesNeeded = Math.ceil(seconds / 0.026);
-  const buf = new ArrayBuffer(silentFrame.length * framesNeeded);
-  const view = new Uint8Array(buf);
-  for (let i = 0; i < framesNeeded; i++) {
-    view.set(silentFrame, i * silentFrame.length);
-  }
-  return buf;
-}
+// ═══════════════════════════════════════════
+//  Init
+// ═══════════════════════════════════════════
+loadSettings();
+updateCacheInfo();
 </script>
 </body>
 </html>
