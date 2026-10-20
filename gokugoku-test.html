@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ごくごくごっくん 接続テスト</title>
+<style>
+  :root { --ink:#222; --sub:#666; --line:#ddd; --ok:#1f8a4c; --ng:#c0392b; --wait:#999; --bg:#fafaf7; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif; color:var(--ink); background:var(--bg); line-height:1.6; }
+  main { max-width:640px; margin:0 auto; padding:20px 16px 48px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .lead { color:var(--sub); margin:0 0 16px; font-size:15px; }
+  ol { list-style:none; padding:0; margin:0 0 16px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+  ol li { display:flex; align-items:center; gap:12px; padding:10px 14px; border-top:1px solid var(--line); font-size:16px; }
+  ol li:first-child { border-top:none; }
+  .mark { display:inline-block; min-width:52px; text-align:center; font-weight:bold; font-size:14px; padding:2px 8px; border-radius:6px; color:#fff; background:var(--wait); }
+  li.ok .mark { background:var(--ok); }
+  li.ng .mark { background:var(--ng); }
+  .note { color:var(--sub); font-size:13px; margin-left:auto; }
+  #err { white-space:pre-wrap; background:#fdecea; color:#7a1f15; border:1px solid #f3b8b0; border-radius:10px; padding:12px 14px; font-size:14px; margin-bottom:16px; }
+  #panel { height:180px; border-radius:14px; border:1px solid var(--line); background:#fff; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:bold; transition:background .3s; text-align:center; padding:0 12px; }
+  .colors { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 20px; }
+  .colors button { flex:1 1 70px; font-size:16px; padding:12px 0; border-radius:10px; border:1px solid var(--line); background:#fff; cursor:pointer; font-family:inherit; }
+  .colors button span { display:inline-block; width:14px; height:14px; border-radius:50%; margin-right:6px; vertical-align:-2px; }
+  label { display:block; font-size:15px; margin-bottom:8px; }
+  input { font-size:16px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; width:100%; margin-top:4px; font-family:inherit; }
+  .count { font-size:18px; margin:16px 0 6px; }
+  .count b { font-size:28px; }
+  #list { list-style:none; padding:0; margin:0; display:flex; flex-wrap:wrap; gap:6px; }
+  #list li { background:#fff; border:1px solid var(--line); border-radius:999px; padding:2px 10px; font-size:14px; }
+  #list li.me { border-color:var(--ok); color:var(--ok); }
+</style>
+</head>
+<body>
+<main>
+  <h1>ごくごくごっくん 接続テスト</h1>
+  <p class="lead">下のチェックがすべて「OK」になるか確認してください。</p>
+
+  <ol id="checks">
+    <li id="c-page" class="ok"><span class="mark">OK</span>ページを開く</li>
+    <li id="c-sdk"><span class="mark">確認中</span>通信用の部品を読み込む<span class="note"></span></li>
+    <li id="c-auth"><span class="mark">確認中</span>匿名でログインする<span class="note"></span></li>
+    <li id="c-db"><span class="mark">確認中</span>データベースにつながる<span class="note"></span></li>
+    <li id="c-rw"><span class="mark">確認中</span>書き込みと読み取り<span class="note"></span></li>
+  </ol>
+
+  <div id="err" hidden></div>
+
+  <section id="live" hidden>
+    <div id="panel">色のボタンを押すと、全員の画面がこの色に変わります</div>
+    <div class="colors">
+      <button data-c="#e2574c"><span style="background:#e2574c"></span>赤</button>
+      <button data-c="#3b82d6"><span style="background:#3b82d6"></span>青</button>
+      <button data-c="#3aa76d"><span style="background:#3aa76d"></span>緑</button>
+      <button data-c="#f2c14e"><span style="background:#f2c14e"></span>黄</button>
+      <button data-c="#ffffff"><span style="background:#fff;border:1px solid #ccc"></span>白</button>
+    </div>
+    <label>名前（出席番号やニックネーム）
+      <input id="name" maxlength="12" autocomplete="off">
+    </label>
+    <p class="count">接続中の端末：<b id="count">0</b> 台</p>
+    <ul id="list"></ul>
+  </section>
+</main>
+
+<script type="module">
+const firebaseConfig = {
+  apiKey: "AIzaSyDUXruwVwoeX1xJ6ZyhqA6QItq5V72sANs",
+  authDomain: "gokugoku-gokkun.firebaseapp.com",
+  databaseURL: "https://gokugoku-gokkun-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "gokugoku-gokkun",
+  storageBucket: "gokugoku-gokkun.firebasestorage.app",
+  messagingSenderId: "696689455211",
+  appId: "1:696689455211:web:3318fd6d17aaf6acf8012e"
+};
+const V = "10.12.2";
+const $ = (id) => document.getElementById(id);
+
+function mark(key, state, note) {
+  const li = $("c-" + key);
+  li.className = state;
+  li.querySelector(".mark").textContent = state === "ok" ? "OK" : "NG";
+  if (note !== undefined) li.querySelector(".note").textContent = note;
+}
+function showErr(msg) {
+  const box = $("err");
+  box.hidden = false;
+  box.textContent += (box.textContent ? "\n\n" : "") + msg;
+}
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error(label + "（" + ms / 1000 + "秒以内に応答なし）")), ms))
+  ]);
+}
+
+let A, Au, D;
+try {
+  [A, Au, D] = await withTimeout(Promise.all([
+    import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
+    import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),
+    import(`https://www.gstatic.com/firebasejs/${V}/firebase-database.js`)
+  ]), 15000, "部品の読み込み");
+  mark("sdk", "ok");
+} catch (e) {
+  mark("sdk", "ng");
+  showErr("【部品の読み込みに失敗】www.gstatic.com への通信が止められている可能性があります。\n" + e.message);
+  throw e;
+}
+
+const app = A.initializeApp(firebaseConfig);
+const auth = Au.getAuth(app);
+const db = D.getDatabase(app);
+
+let uid;
+try {
+  const cred = await withTimeout(Au.signInAnonymously(auth), 15000, "匿名ログイン");
+  uid = cred.user.uid;
+  mark("auth", "ok");
+} catch (e) {
+  mark("auth", "ng");
+  const code = e.code || "";
+  let hint = "identitytoolkit.googleapis.com への通信が止められている可能性があります。";
+  if (code === "auth/operation-not-allowed" || code === "auth/admin-restricted-operation") hint = "Firebase の Authentication で「匿名」が有効になっていません。";
+  showErr("【匿名ログインに失敗】" + hint + "\n" + (code || e.message));
+  throw e;
+}
+
+const connected = new Promise((resolve) => {
+  D.onValue(D.ref(db, ".info/connected"), (snap) => { if (snap.val() === true) resolve(); });
+});
+try {
+  await withTimeout(connected, 15000, "データベース接続");
+  mark("db", "ok");
+} catch (e) {
+  mark("db", "ng");
+  showErr("【データベースに接続できない】firebasedatabase.app への通信が止められているか、データベースのアドレスが違う可能性があります。\n" + e.message);
+  throw e;
+}
+
+try {
+  const t0 = performance.now();
+  const pingRef = D.ref(db, "conntest/ping/" + uid);
+  await withTimeout(D.set(pingRef, { at: D.serverTimestamp() }), 15000, "書き込み");
+  await withTimeout(D.get(pingRef), 15000, "読み取り");
+  mark("rw", "ok", Math.round(performance.now() - t0) + " ミリ秒");
+} catch (e) {
+  mark("rw", "ng");
+  const hint = /permission/i.test(e.message) ? "データベースのルールがまだ設定されていません。" : "";
+  showErr("【書き込み・読み取りに失敗】" + hint + "\n" + e.message);
+  throw e;
+}
+
+$("live").hidden = false;
+
+let myName = "";
+try { myName = localStorage.getItem("gokugoku-name") || ""; } catch (e) {}
+if (!myName) myName = "端末" + uid.slice(0, 4);
+$("name").value = myName;
+
+const meRef = D.ref(db, "conntest/clients/" + uid);
+D.onDisconnect(meRef).remove();
+D.set(meRef, { name: myName, at: D.serverTimestamp() });
+
+$("name").addEventListener("change", (ev) => {
+  myName = ev.target.value.trim().slice(0, 12) || "端末" + uid.slice(0, 4);
+  ev.target.value = myName;
+  try { localStorage.setItem("gokugoku-name", myName); } catch (e) {}
+  D.update(meRef, { name: myName });
+});
+
+D.onValue(D.ref(db, "conntest/clients"), (snap) => {
+  const list = $("list");
+  list.textContent = "";
+  let n = 0;
+  snap.forEach((child) => {
+    n++;
+    const li = document.createElement("li");
+    li.textContent = (child.val() && child.val().name) || "名前なし";
+    if (child.key === uid) li.className = "me";
+    list.appendChild(li);
+  });
+  $("count").textContent = n;
+});
+
+D.onValue(D.ref(db, "conntest/color"), (snap) => {
+  const v = snap.val();
+  if (!v) return;
+  $("panel").style.background = v.c;
+  $("panel").textContent = v.by + " さんが色を変えました";
+  $("panel").style.color = v.c === "#ffffff" || v.c === "#f2c14e" ? "#222" : "#fff";
+});
+
+document.querySelectorAll(".colors button").forEach((b) => {
+  b.addEventListener("click", () => {
+    D.set(D.ref(db, "conntest/color"), { c: b.dataset.c, by: myName, at: D.serverTimestamp() });
+  });
+});
+</script>
+</body>
+</html>
