@@ -12,6 +12,8 @@ from pathlib import Path
 
 BASE_URL = "https://raw.githubusercontent.com/ssonjune-cloud/tools/main/ruby/"
 HERE = Path(__file__).resolve().parent
+# 辞書のファイル名（文字化けを避けるため英字にしている）
+DICT_FILE = {"共通": "common", "国語": "kokugo", "理科": "rika", "社会": "shakai", "古文": "kobun"}
 
 KANJI = re.compile(r'[一-鿿々〇〻]')
 YOMI_OK = re.compile(r'^[ぁ-ゟー]+$')   # ひらがな（ゐ・ゑ・ゝ・ゞを含む）と長音
@@ -24,7 +26,7 @@ def _get(name):
     local = HERE / name
     if local.exists():
         return local.read_text(encoding="utf-8")
-    url = BASE_URL + urllib.request.quote(name)
+    url = BASE_URL + name
     with urllib.request.urlopen(url, timeout=20) as r:
         return r.read().decode("utf-8")
 
@@ -101,10 +103,10 @@ def run(paths, kyoka="共通のみ", seikei=False, konkai="", out_dir=None):
     import furigana
     from janome.tokenizer import Tokenizer
 
-    yomi = load_json_dict("辞書/共通.json")
-    if kyoka and kyoka != "共通のみ":
-        yomi.update(load_json_dict(f"辞書/{kyoka}.json"))
-    kobun = load_json_dict("辞書/古文.json")
+    yomi = load_json_dict("dict/common.json")
+    if kyoka in DICT_FILE and kyoka != "共通":
+        yomi.update(load_json_dict(f"dict/{DICT_FILE[kyoka]}.json"))
+    kobun = load_json_dict("dict/kobun.json")
     extra, bad = parse_dict_text(konkai)
     yomi.update(extra)
 
