@@ -1,727 +1,582 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f0f11">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Dialog Player</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap');
-
   :root {
     --bg: #0f0f11;
     --surface: #18181c;
     --surface2: #22222a;
     --border: #2e2e38;
     --shu: #7eb8f7;
-    --shu-dim: rgba(126,184,247,0.12);
+    --shu-dim: rgba(126,184,247,0.13);
     --maya: #f7a87e;
-    --maya-dim: rgba(247,168,126,0.12);
-    --text: #e8e8f0;
-    --muted: #666676;
+    --maya-dim: rgba(247,168,126,0.13);
+    --diary: #b9a6f7;
+    --diary-dim: rgba(185,166,247,0.12);
+    --text: #ececf3;
+    --muted: #7c7c8c;
     --accent: #c8f76e;
-    --accent-dim: rgba(200,247,110,0.10);
+    --accent-dim: rgba(200,247,110,0.12);
     --error: #f77e7e;
-    --radius: 14px;
+    --r: 14px;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", sans-serif;
   }
-
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-
+  html, body { height: 100%; }
   body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'DM Mono', monospace;
-    height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    background: var(--bg); color: var(--text); font-family: var(--sans);
+    height: 100dvh; display: flex; flex-direction: column; overflow: hidden;
+    overscroll-behavior: none;
   }
+  button, input, select, textarea { font-family: inherit; color: inherit; }
+  button { cursor: pointer; }
 
+  /* ─── Header ─── */
   header {
-    padding: 16px 20px 0;
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    flex-shrink: 0;
+    flex-shrink: 0; display: flex; align-items: center; gap: 2px;
+    padding: calc(6px + env(safe-area-inset-top)) 6px 6px;
+    border-bottom: 1px solid var(--border); background: var(--bg);
   }
-  header h1 {
-    font-family: 'Fraunces', serif;
-    font-weight: 300;
-    font-size: 1.4rem;
-    letter-spacing: -0.02em;
-    color: var(--text);
+  .ib {
+    width: 44px; height: 44px; border: none; background: transparent; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--text);
   }
-  header span {
-    font-size: 0.65rem;
-    color: var(--muted);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+  .ib:active { background: var(--surface2); }
+  .ib:disabled { opacity: 0.2; }
+  .ib svg { width: 22px; height: 22px; }
+  #day-btn {
+    flex: 1; min-width: 0; border: none; background: transparent; border-radius: 12px;
+    display: flex; flex-direction: column; align-items: center; padding: 3px 4px;
   }
-  #edit-btn {
-    margin-left: auto;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    color: var(--muted);
-    font-family: 'DM Mono', monospace;
-    font-size: 0.62rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding: 5px 12px;
-    cursor: pointer;
-    display: none;
-  }
-  #edit-btn.visible { display: block; }
+  #day-btn:active { background: var(--surface2); }
+  #day-title { font-size: 1.05rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  #day-btn.has-days #day-title::after { content: " ▾"; font-size: 0.7rem; color: var(--muted); }
+  #day-sub { font-size: 0.7rem; color: var(--muted); margin-top: 1px; font-variant-numeric: tabular-nums; }
 
-  #api-key-section {
-    margin: 12px 16px 0;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-    transition: border-color 0.2s;
-    flex-shrink: 0;
+  /* ─── Turn list ─── */
+  main {
+    flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 12px 12px 28px; overscroll-behavior: contain;
   }
-  #api-key-section:focus-within { border-color: var(--accent); }
-  #api-key-section.valid { border-color: rgba(200,247,110,0.4); }
-  #api-key-section.error { border-color: var(--error); }
+  #list { display: flex; flex-direction: column; gap: 8px; }
 
-  .api-key-inner {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-  }
-  .api-key-label {
-    font-size: 0.6rem;
-    color: var(--muted);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-  #api-key-input {
-    flex: 1;
-    background: transparent;
-    border: none;
-    outline: none;
-    color: var(--text);
-    font-family: 'DM Mono', monospace;
-    font-size: 0.75rem;
-    min-width: 0;
-  }
-  #api-key-status { font-size: 0.65rem; flex-shrink: 0; }
-
-  .api-key-save-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 0 12px 8px;
-    border-top: 1px solid var(--border);
-  }
-  .api-key-save-row label {
-    font-size: 0.6rem;
-    color: var(--muted);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    cursor: pointer;
-    user-select: none;
-  }
-  #save-key-checkbox { accent-color: var(--accent); width: 13px; height: 13px; cursor: pointer; }
-  .save-key-note { font-size: 0.58rem; color: var(--muted); margin-left: auto; opacity: 0.6; }
-
-  #input-section {
-    margin: 10px 16px 0;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-    transition: border-color 0.2s;
-    flex-shrink: 0;
-  }
-  #input-section:focus-within { border-color: var(--accent); }
-
-  #input-label {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 14px 7px;
-    border-bottom: 1px solid var(--border);
-  }
-  #input-label span {
-    font-size: 0.62rem;
-    color: var(--muted);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-
-  textarea {
-    width: 100%;
-    background: transparent;
-    border: none;
-    outline: none;
-    color: var(--text);
-    font-family: 'DM Mono', monospace;
-    font-size: 0.78rem;
-    line-height: 1.7;
-    padding: 10px 14px;
-    resize: none;
-    min-height: 90px;
-  }
-  textarea::placeholder { color: var(--muted); }
-
-  #cache-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 14px;
-    border-top: 1px solid var(--border);
-    font-size: 0.6rem;
-    color: var(--muted);
-    letter-spacing: 0.06em;
-  }
-  #cache-info { flex: 1; }
-  #cache-clear {
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--muted);
-    font-family: 'DM Mono', monospace;
-    font-size: 0.58rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding: 3px 10px;
-    cursor: pointer;
-  }
-
-  #load-btn {
-    display: block;
-    width: calc(100% - 32px);
-    margin: 8px 16px 10px;
-    padding: 13px;
-    background: var(--accent);
-    color: #0f0f11;
-    border: none;
-    border-radius: 10px;
-    font-family: 'DM Mono', monospace;
-    font-size: 0.85rem;
-    font-weight: 500;
-    letter-spacing: 0.05em;
-    cursor: pointer;
-    transition: opacity 0.15s, transform 0.1s;
-    flex-shrink: 0;
-  }
-  #load-btn:active { opacity: 0.8; transform: scale(0.98); }
-  #load-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  #voice-settings {
-    margin: 0 16px 8px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    flex-shrink: 0;
-  }
-  .voice-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 12px;
-  }
-  .voice-card.shu { border-left: 3px solid var(--shu); }
-  .voice-card.maya { border-left: 3px solid var(--maya); }
-  .voice-label {
-    font-size: 0.65rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    margin-bottom: 8px;
-  }
-  .voice-card.shu .voice-label { color: var(--shu); }
-  .voice-card.maya .voice-label { color: var(--maya); }
-  select {
-    width: 100%;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    color: var(--text);
-    font-family: 'DM Mono', monospace;
-    font-size: 0.7rem;
-    padding: 6px 8px;
-    outline: none;
-    cursor: pointer;
-    margin-bottom: 8px;
-  }
-  .rate-row { display: flex; align-items: center; gap: 8px; }
-  .rate-row span { font-size: 0.65rem; color: var(--muted); }
-  .rate-row input[type=range] {
-    flex: 1; height: 3px;
-    -webkit-appearance: none;
-    background: var(--border);
-    border-radius: 2px;
-    outline: none;
-  }
-  .voice-card.shu .rate-row input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none; width: 14px; height: 14px;
-    background: var(--shu); border-radius: 50%; cursor: pointer;
-  }
-  .voice-card.maya .rate-row input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none; width: 14px; height: 14px;
-    background: var(--maya); border-radius: 50%; cursor: pointer;
-  }
-  .rate-val { min-width: 28px; font-size: 0.65rem; color: var(--muted); text-align: right; }
-
-  #controls {
-    margin: 0; background: transparent; border: none; padding: 0;
-    display: flex; flex-direction: column; gap: 10px;
-  }
-  .ctrl-row {
-    display: flex; align-items: center; justify-content: center; gap: 12px;
-  }
-  .btn-icon {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 50%;
-    width: 44px; height: 44px;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; color: var(--text);
-    transition: background 0.15s, transform 0.1s;
-    flex-shrink: 0;
-  }
-  .btn-icon:active { transform: scale(0.92); }
-  .btn-icon svg { width: 18px; height: 18px; }
-  .btn-icon:disabled { opacity: 0.3; cursor: not-allowed; }
-
-  #play-btn {
-    width: 60px; height: 60px;
-    background: var(--accent); border-color: transparent; color: #0f0f11;
-  }
-  #play-btn svg { width: 24px; height: 24px; }
-  #play-btn.loading {
-    background: var(--surface2); border-color: var(--border); color: var(--text);
-    animation: pulse 0.8s ease-in-out infinite alternate;
-  }
-  @keyframes pulse { from { opacity: 0.5; } to { opacity: 1; } }
-
-  .toggle-btn {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--muted);
-    font-family: 'DM Mono', monospace;
-    font-size: 0.65rem;
-    letter-spacing: 0.08em;
-    padding: 6px 12px;
-    cursor: pointer;
-    transition: all 0.15s;
-    text-transform: uppercase;
-  }
-  .toggle-btn.on { background: var(--accent); border-color: transparent; color: #0f0f11; }
-  #role-btn.on.shu  { background: var(--shu); }
-  #role-btn.on.maya { background: var(--maya); }
-
-  .ctrl-row-small {
-    display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
-  }
-  .pause-row {
-    display: flex; align-items: center; gap: 10px; justify-content: center;
-  }
-  .pause-row label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
-  .pause-row input[type=range] {
-    width: 100px; height: 3px;
-    -webkit-appearance: none; background: var(--border); border-radius: 2px; outline: none;
-  }
-  .pause-row input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none; width: 14px; height: 14px;
-    background: var(--accent); border-radius: 50%; cursor: pointer;
-  }
-  .pause-val { font-size: 0.65rem; color: var(--muted); min-width: 28px; }
-
-  /* ─── Scrollable turn area ─── */
-  #turn-scroll {
-    flex: 1;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 0 16px 16px;
-    min-height: 0;
-  }
-
-  #turn-list { display: flex; flex-direction: column; gap: 8px; }
-
-  #bottom-panel {
-    flex-shrink: 0;
-    background: var(--bg);
-    border-top: 1px solid var(--border);
-    padding: 10px 16px max(16px, env(safe-area-inset-bottom));
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    overflow-y: auto;
-    max-height: 55dvh;
-  }
-
-  /* ─── Turn card ─── */
   .turn {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 12px 14px;
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
-    position: relative;
-    overflow: hidden;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+    padding: 11px 14px 13px; position: relative; overflow: hidden;
+    transition: background 0.15s, border-color 0.15s; cursor: pointer;
   }
   .turn:active { opacity: 0.85; }
-  .turn.shu { border-left: 3px solid var(--shu); }
-  .turn.maya { border-left: 3px solid var(--maya); }
-  .turn.playing.shu { background: var(--shu-dim); border-color: var(--shu); }
-  .turn.playing.maya { background: var(--maya-dim); border-color: var(--maya); }
-  .turn.playing.yours-now { background: var(--accent-dim); border-color: var(--accent); }
+  .turn.shu   { border-left: 3px solid var(--shu); }
+  .turn.maya  { border-left: 3px solid var(--maya); }
+  .turn.diary { border-left: 3px solid var(--diary); margin-bottom: 6px; }
+  .turn.cur.shu   { background: var(--shu-dim);   border-color: var(--shu); }
+  .turn.cur.maya  { background: var(--maya-dim);  border-color: var(--maya); }
+  .turn.cur.diary { background: var(--diary-dim); border-color: var(--diary); }
+  .turn.cur.yours-now { background: var(--accent-dim); border-color: var(--accent); }
+  .turn.skip { opacity: 0.75; }
 
-  .turn-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 6px;
+  .th { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; min-height: 18px; }
+  .spk { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+  .shu .spk { color: var(--shu); } .maya .spk { color: var(--maya); } .diary .spk { color: var(--diary); }
+  .tag {
+    font-size: 0.58rem; letter-spacing: 0.08em; padding: 1px 6px; border-radius: 4px;
+    border: 1px solid var(--accent); color: var(--accent);
   }
-  .turn-speaker {
-    font-size: 0.65rem;
-    font-weight: 500;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+  .tag.muted { border-color: var(--border); color: var(--muted); }
+  .speak-now { display: none; font-size: 0.66rem; color: var(--accent); font-weight: 600; }
+  .turn.cur.yours-now .speak-now { display: inline; }
+  .num { margin-left: auto; font-size: 0.62rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .dl {
+    font-size: 0.68rem; color: var(--muted); text-decoration: none; padding: 2px 8px;
+    border: 1px solid var(--border); border-radius: 6px; display: none;
   }
-  .turn.shu .turn-speaker { color: var(--shu); }
-  .turn.maya .turn-speaker { color: var(--maya); }
-  .you-tag {
-    font-size: 0.55rem;
-    letter-spacing: 0.12em;
-    padding: 1px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--accent);
-    color: var(--accent);
-  }
-  .speak-now {
-    display: none;
-    font-size: 0.6rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--accent);
-  }
-  .turn.playing.yours-now .speak-now { display: inline; }
-  .turn-num { font-size: 0.6rem; color: var(--muted); margin-left: auto; }
+  .dl.ready { display: inline-block; }
 
-  .turn-text {
-    font-size: 0.85rem;
-    line-height: 1.75;
-    color: var(--text);
-    word-break: break-word;
-    white-space: pre-wrap;
-    padding-bottom: 2px;
+  .tx { font-size: 1.04rem; line-height: 1.62; word-break: break-word; white-space: pre-wrap; }
+  .tx.hidden { filter: blur(7px); user-select: none; -webkit-user-select: none; }
+  .tx.initials { letter-spacing: 0.04em; color: #cfd0dc; }
+  .diary .tx { font-size: 0.95rem; color: #d8d6e6; }
+  .diary.collapsed .tx {
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   }
+  .more {
+    margin-top: 6px; background: none; border: none; color: var(--diary);
+    font-size: 0.72rem; padding: 4px 0;
+  }
+  .bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--accent); }
+  .turn:not(.cur) .bar { width: 0 !important; }
 
-  .turn-footer {
-    margin-top: 8px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 24px;
+  /* ─── Empty state ─── */
+  #empty {
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; padding: 48px 24px; text-align: center; color: var(--muted);
   }
-  .dl-btn {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: rgba(200,247,110,0.06);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--muted);
-    font-family: 'DM Mono', monospace;
-    font-size: 0.65rem;
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    padding: 6px 14px;
-    cursor: default;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-    text-decoration: none;
-    flex-shrink: 0;
-    opacity: 0.4;
-    pointer-events: none;
+  #empty .big { font-size: 3rem; }
+  #empty p { font-size: 0.88rem; line-height: 1.8; }
+  .btn {
+    display: block; width: 100%; padding: 14px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--surface2); font-size: 0.95rem; font-weight: 600; text-align: center;
   }
-  .dl-btn.ready {
-    background: rgba(200,247,110,0.15);
-    border-color: var(--accent);
-    color: var(--accent);
-    opacity: 1;
-    cursor: pointer;
-    pointer-events: auto;
-  }
-  .dl-btn.ready:active { background: rgba(200,247,110,0.3); }
+  .btn.primary { background: var(--accent); color: #0f0f11; border-color: transparent; }
+  .btn.danger { color: var(--error); }
+  .btn:active { opacity: 0.8; }
+  .btn:disabled { opacity: 0.4; }
+  #empty .btn { max-width: 320px; }
 
-  .playing-bar {
-    position: absolute;
-    bottom: 0; left: 0;
-    height: 2px;
-    background: var(--accent);
-    width: 0%;
+  /* ─── Bottom panel ─── */
+  footer {
+    flex-shrink: 0; border-top: 1px solid var(--border); background: var(--bg);
+    padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
   }
-  .turn:not(.playing) .playing-bar { width: 0% !important; }
+  .status {
+    display: flex; align-items: baseline; gap: 8px; font-size: 0.74rem; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  #st-left { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #st-left.err { color: var(--error); }
+  #st-time { font-size: 0.9rem; color: var(--text); }
+  #st-total { font-size: 0.66rem; }
+  .dprog { height: 3px; background: var(--surface2); border-radius: 2px; margin: 6px 0 8px; overflow: hidden; }
+  #dprog-fill { height: 100%; width: 0; background: var(--accent); }
 
-  #status-bar {
-    display: flex; align-items: center; justify-content: space-between;
-    font-size: 0.65rem; color: var(--muted); letter-spacing: 0.06em;
+  .mainrow { display: flex; align-items: center; justify-content: center; gap: 30px; }
+  .round {
+    width: 54px; height: 54px; border-radius: 50%; border: 1px solid var(--border);
+    background: var(--surface2); display: flex; align-items: center; justify-content: center;
   }
-  #status-countdown {
-    font-size: 0.9rem; color: var(--text); letter-spacing: 0.04em; transition: color 0.3s;
-  }
-  #status-countdown.near-end { color: var(--maya); }
-  #status-total { font-size: 0.6rem; color: var(--muted); }
+  .round:active { transform: scale(0.93); }
+  .round svg { width: 22px; height: 22px; }
+  #play { width: 70px; height: 70px; background: var(--accent); color: #0f0f11; border: none; }
+  #play svg { width: 28px; height: 28px; }
+  #play.loading { background: var(--surface2); color: var(--text); animation: pulse 0.8s ease-in-out infinite alternate; }
+  @keyframes pulse { from { opacity: 0.55; } to { opacity: 1; } }
 
-  #empty-state {
-    flex: 1; display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 8px; padding: 40px 20px; color: var(--muted);
+  .chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 10px; }
+  .chip {
+    border: 1px solid var(--border); background: var(--surface); border-radius: 10px;
+    padding: 4px 2px; min-height: 46px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 2px;
   }
-  #empty-state .big { font-size: 2.5rem; }
-  #empty-state p { font-size: 0.72rem; text-align: center; line-height: 1.8; }
+  .chip:active { transform: scale(0.96); }
+  .chip small { font-size: 0.58rem; color: var(--muted); letter-spacing: 0.04em; }
+  .chip b { font-size: 0.8rem; font-weight: 600; white-space: nowrap; }
+  .chip.on { border-color: var(--accent); background: var(--accent-dim); }
+  .chip.on b { color: var(--accent); }
+  .chip.on.shu  { border-color: var(--shu);  background: var(--shu-dim); }
+  .chip.on.shu b { color: var(--shu); }
+  .chip.on.maya { border-color: var(--maya); background: var(--maya-dim); }
+  .chip.on.maya b { color: var(--maya); }
 
-  #player-section { display: none; flex-direction: column; flex: 1; overflow: hidden; min-height: 0; }
-  #player-section.visible { display: flex; }
+  /* ─── Sheets ─── */
+  .sheet {
+    position: fixed; inset: 0; z-index: 20; background: var(--bg);
+    display: flex; flex-direction: column;
+    transform: translateY(100%); visibility: hidden;
+    transition: transform 0.24s ease, visibility 0s linear 0.24s;
+  }
+  .sheet.open { transform: none; visibility: visible; transition: transform 0.24s ease; }
+  .sheet-head {
+    flex-shrink: 0; display: flex; align-items: center; gap: 4px;
+    padding: calc(6px + env(safe-area-inset-top)) 6px 6px 16px; border-bottom: 1px solid var(--border);
+  }
+  .sheet-head h2 { flex: 1; font-size: 1rem; font-weight: 600; }
+  .sheet-body { flex: 1; overflow-y: auto; padding: 14px 16px calc(28px + env(safe-area-inset-bottom)); }
 
-  #dl-all-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    padding: 10px;
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    color: var(--muted);
-    font-family: 'DM Mono', monospace;
-    font-size: 0.72rem;
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    cursor: pointer;
-    transition: all 0.15s;
+  .sec { margin-bottom: 22px; }
+  .sec h3 { font-size: 0.7rem; color: var(--muted); letter-spacing: 0.1em; margin-bottom: 8px; font-weight: 600; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); }
+  .row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; min-height: 50px; }
+  .row + .row { border-top: 1px solid var(--border); }
+  .row > label:first-child, .row > span:first-child { font-size: 0.88rem; flex-shrink: 0; }
+  .row .grow { flex: 1; min-width: 0; }
+  .row .val { font-size: 0.82rem; color: var(--muted); min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+  .note { font-size: 0.74rem; color: var(--muted); line-height: 1.7; margin-top: 8px; }
+  .note.err { color: var(--error); }
+
+  input[type=password], input[type=text], select {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    font-size: 0.9rem; padding: 9px 10px; outline: none; width: 100%;
   }
-  #dl-all-btn:hover { border-color: var(--accent); color: var(--accent); }
-  #dl-all-btn:active { opacity: 0.7; }
-  #dl-all-btn.loading {
-    border-color: var(--accent);
-    color: var(--accent);
-    opacity: 0.6;
-    cursor: not-allowed;
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); flex-shrink: 0; }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; background: var(--border); border-radius: 2px; outline: none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); }
+  input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border: none; border-radius: 50%; background: var(--accent); }
+  #key-state { font-size: 0.8rem; flex-shrink: 0; }
+  #key-state.ok { color: var(--accent); }
+  #key-state.bad { color: var(--error); }
+
+  textarea {
+    width: 100%; min-height: 38vh; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r); padding: 12px; font-size: 0.85rem; line-height: 1.6; outline: none; resize: vertical;
   }
-  #dl-all-progress {
-    font-size: 0.6rem;
-    color: var(--muted);
+  .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .stack > * + * { margin-top: 8px; }
+
+  /* Day list */
+  .day {
+    display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 11px 14px; margin-bottom: 8px;
   }
+  .day.cur { border-color: var(--accent); background: var(--accent-dim); }
+  .day .d1 { font-size: 0.95rem; font-weight: 600; white-space: nowrap; min-width: 92px; font-variant-numeric: tabular-nums; }
+  .day .d2 { flex: 1; min-width: 0; font-size: 0.78rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .day .d3 { font-size: 0.7rem; color: var(--muted); flex-shrink: 0; font-variant-numeric: tabular-nums; }
+  .day .saved { color: var(--accent); }
+  .month { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.08em; margin: 14px 2px 8px; }
+  .month:first-child { margin-top: 0; }
+
+  #toast {
+    position: fixed; left: 50%; bottom: calc(190px + env(safe-area-inset-bottom)); z-index: 40;
+    transform: translateX(-50%) translateY(10px); opacity: 0; pointer-events: none;
+    background: #2b2b35; border: 1px solid var(--border); color: var(--text);
+    padding: 10px 16px; border-radius: 12px; font-size: 0.84rem; max-width: 88vw; text-align: center;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%); }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>Dialog Player</h1>
-  <span>shadowing / listening</span>
-  <button id="edit-btn">Edit</button>
+  <button class="ib" id="day-prev" aria-label="前の日">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+  </button>
+  <button id="day-btn">
+    <span id="day-title">Dialog Player</span>
+    <span id="day-sub">shadowing / listening</span>
+  </button>
+  <button class="ib" id="day-next" aria-label="次の日">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+  </button>
+  <button class="ib" id="menu-btn" aria-label="設定">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2" fill="var(--bg)"/><circle cx="15" cy="12" r="2" fill="var(--bg)"/><circle cx="8" cy="17" r="2" fill="var(--bg)"/></svg>
+  </button>
 </header>
 
-<div id="api-key-section">
-  <div class="api-key-inner">
-    <span class="api-key-label">OpenAI Key</span>
-    <input type="password" id="api-key-input" placeholder="sk-..." autocomplete="off" spellcheck="false">
-    <span id="api-key-status">—</span>
+<main id="scroll">
+  <div id="list"></div>
+  <div id="empty">
+    <div class="big">🎧</div>
+    <p>英文日記のファイル（または本文）を読み込むと、<br>日付ごとにダイアログを聞けます。</p>
+    <button class="btn primary" id="empty-file">ファイルを開く</button>
+    <button class="btn" id="empty-paste">貼り付けて読み込む</button>
   </div>
-  <div class="api-key-save-row">
-    <input type="checkbox" id="save-key-checkbox">
-    <label for="save-key-checkbox">Save key</label>
-    <span class="save-key-note">stored in browser only</span>
-  </div>
-</div>
+</main>
 
-<div id="input-section">
-  <div id="input-label">
-    <span>Paste dialog</span>
-    <span id="turn-count-label"></span>
+<footer id="panel">
+  <div class="status">
+    <span id="st-left">—</span>
+    <span id="st-time">—</span>
+    <span id="st-total"></span>
   </div>
-  <textarea id="dialog-input" placeholder="Shu: Hello, how's it going?&#10;Maya: Pretty good! I just finished the report.&#10;Shu: Oh nice, when did you finish it?"></textarea>
-  <div id="cache-row">
-    <span id="cache-info">Saved audio: —</span>
-    <button id="cache-clear">Clear</button>
-  </div>
-</div>
-<button id="load-btn">Load Dialog ↓</button>
-
-<div id="player-section">
-
-  <div id="voice-settings">
-    <div class="voice-card shu">
-      <div class="voice-label">Shu</div>
-      <select id="shu-voice">
-        <option value="onyx">onyx</option>
-        <option value="echo">echo</option>
-        <option value="fable">fable</option>
-        <option value="alloy">alloy</option>
-        <option value="nova">nova</option>
-        <option value="shimmer">shimmer</option>
-      </select>
-      <div class="rate-row">
-        <span>Speed</span>
-        <input type="range" id="shu-rate" min="0.5" max="1.5" step="0.05" value="0.9">
-        <span class="rate-val" id="shu-rate-val">0.90×</span>
-      </div>
-    </div>
-    <div class="voice-card maya">
-      <div class="voice-label">Maya</div>
-      <select id="maya-voice">
-        <option value="shimmer">shimmer</option>
-        <option value="nova">nova</option>
-        <option value="alloy">alloy</option>
-        <option value="fable">fable</option>
-        <option value="echo">echo</option>
-        <option value="onyx">onyx</option>
-      </select>
-      <div class="rate-row">
-        <span>Speed</span>
-        <input type="range" id="maya-rate" min="0.5" max="1.5" step="0.05" value="0.9">
-        <span class="rate-val" id="maya-rate-val">0.90×</span>
-      </div>
-    </div>
-  </div>
-
-  <div id="turn-scroll">
-    <div id="turn-list"></div>
-  </div>
-
-  <div id="bottom-panel">
-    <div id="status-bar">
-      <span id="status-left">—</span>
-      <span id="status-countdown">—</span>
-      <span id="status-total"></span>
-    </div>
-    <div id="controls">
-      <div class="ctrl-row">
-        <button class="btn-icon" id="prev-btn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-        </button>
-        <button class="btn-icon" id="play-btn">
-          <svg id="play-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
-          <svg id="pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-          <svg id="loading-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><circle cx="12" cy="12" r="10" stroke-dasharray="40" stroke-dashoffset="10"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></circle></svg>
-        </button>
-        <button class="btn-icon" id="next-btn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-      </div>
-      <div class="ctrl-row-small">
-        <button class="toggle-btn" id="repeat-btn">Repeat ×1</button>
-        <button class="toggle-btn" id="auto-btn">Auto</button>
-        <button class="toggle-btn" id="hide-btn">Show text</button>
-        <button class="toggle-btn" id="role-btn">Role: off</button>
-      </div>
-      <div class="pause-row">
-        <label>Pause</label>
-        <input type="range" id="pause-slider" min="0" max="4" step="0.5" value="1">
-        <span class="pause-val" id="pause-val">1.0s</span>
-      </div>
-    </div>
-    <button id="dl-all-btn">
-      ↓ Download all · WAV (1.0×) <span id="dl-all-progress"></span>
+  <div class="dprog"><div id="dprog-fill"></div></div>
+  <div class="mainrow">
+    <button class="round" id="prev" aria-label="前のターン">
+      <svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="2.6" height="14" rx="1"/><polygon points="19,5 9,12 19,19"/></svg>
+    </button>
+    <button class="round" id="play" aria-label="再生">
+      <svg id="ic-play" viewBox="0 0 24 24" fill="currentColor"><polygon points="7,4 20,12 7,20"/></svg>
+      <svg id="ic-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+      <svg id="ic-load" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="display:none"><circle cx="12" cy="12" r="9" stroke-dasharray="40" stroke-dashoffset="12"><animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite"/></circle></svg>
+    </button>
+    <button class="round" id="next" aria-label="次のターン">
+      <svg viewBox="0 0 24 24" fill="currentColor"><rect x="16.4" y="5" width="2.6" height="14" rx="1"/><polygon points="5,5 15,12 5,19"/></svg>
     </button>
   </div>
+  <div class="chips">
+    <button class="chip" id="c-repeat"><small>リピート</small><b>×1</b></button>
+    <button class="chip" id="c-cont"><small>再生</small><b>この日</b></button>
+    <button class="chip" id="c-text"><small>文字</small><b>全文</b></button>
+    <button class="chip" id="c-role"><small>ロール</small><b>なし</b></button>
+    <button class="chip" id="c-speed"><small>速度</small><b>0.9×</b></button>
+  </div>
+</footer>
 
+<!-- Day picker -->
+<div class="sheet" id="sheet-days">
+  <div class="sheet-head">
+    <h2>日付を選ぶ</h2>
+    <button class="ib" data-close aria-label="閉じる"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+  </div>
+  <div class="sheet-body">
+    <div id="day-list"></div>
+    <button class="btn" id="days-add" style="margin-top:12px">＋ ダイアログを追加・更新</button>
+  </div>
 </div>
 
-<div id="empty-state">
-  <div class="big">🎧</div>
-  <p>Paste your Shu / Maya dialog<br>and tap <strong>Load Dialog</strong>.<br>The API key is only needed for new audio.</p>
+<!-- Library import -->
+<div class="sheet" id="sheet-lib">
+  <div class="sheet-head">
+    <h2>ダイアログを読み込む</h2>
+    <button class="ib" data-close aria-label="閉じる"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+  </div>
+  <div class="sheet-body">
+    <button class="btn primary" id="lib-file">ファイルを開く（.txt / .md）</button>
+    <p class="note">または下に貼り付け。日付の見出し（例: November 25, 2026, Wednesday）ごとに分けて保存します。1日分だけ貼っても、既存の日付に追加されます。</p>
+    <textarea id="lib-text" style="margin-top:10px" placeholder="November 25, 2026, Wednesday&#10;&#10;(日記本文)&#10;&#10;Maya: Shu, you've been smiling a lot lately.&#10;Shu: Hmm, maybe..."></textarea>
+    <div class="btn-row">
+      <button class="btn primary" id="lib-merge">追加・更新</button>
+      <button class="btn" id="lib-replace">すべて置き換え</button>
+    </div>
+  </div>
 </div>
+
+<!-- Settings -->
+<div class="sheet" id="sheet-set">
+  <div class="sheet-head">
+    <h2>設定</h2>
+    <button class="ib" data-close aria-label="閉じる"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+  </div>
+  <div class="sheet-body">
+    <div class="sec">
+      <h3>OPENAI API KEY</h3>
+      <div class="card">
+        <div class="row">
+          <input type="password" id="key" class="grow" placeholder="sk-..." autocomplete="off" spellcheck="false">
+          <span id="key-state">—</span>
+        </div>
+        <div class="row">
+          <input type="checkbox" id="key-save">
+          <label for="key-save" class="grow" style="font-size:.88rem">この端末にキーを保存</label>
+        </div>
+      </div>
+      <p class="note" id="key-note">キーが必要なのは、まだ保存されていない音声を作るときだけです。</p>
+    </div>
+
+    <div class="sec">
+      <h3>再生</h3>
+      <div class="card">
+        <div class="row">
+          <span>速度</span>
+          <input type="range" id="speed" class="grow" min="0.5" max="1.5" step="0.05">
+          <span class="val" id="speed-val"></span>
+        </div>
+        <div class="row">
+          <span>ターン間</span>
+          <input type="range" id="pause" class="grow" min="0" max="4" step="0.5">
+          <span class="val" id="pause-val"></span>
+        </div>
+        <div class="row">
+          <input type="checkbox" id="read-diary">
+          <label for="read-diary" class="grow" style="font-size:.88rem">日記本文も読み上げる（ダイアログの前）</label>
+        </div>
+      </div>
+      <p class="note">速度は再生側で変えるので、変えても音声を作り直しません（課金なし）。</p>
+    </div>
+
+    <div class="sec">
+      <h3>声</h3>
+      <div class="card">
+        <div class="row"><span style="color:var(--shu);min-width:48px">Shu</span><select id="v-shu" class="grow"></select></div>
+        <div class="row"><span style="color:var(--maya);min-width:48px">Maya</span><select id="v-maya" class="grow"></select></div>
+        <div class="row"><span style="color:var(--diary);min-width:48px">日記</span><select id="v-diary" class="grow"></select></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>この日の音声</h3>
+      <div class="stack">
+        <button class="btn" id="prep-day">この日の音声を先にすべて準備</button>
+        <button class="btn" id="dl-day">まとめてダウンロード（WAV）</button>
+      </div>
+      <p class="note" id="day-note">ロールがオンのときは、自分の役が無音のロールプレイ用音声になります。</p>
+    </div>
+
+    <div class="sec">
+      <h3>ライブラリ</h3>
+      <div class="stack">
+        <button class="btn" id="set-add">ダイアログを追加・更新</button>
+      </div>
+      <p class="note" id="lib-info"></p>
+    </div>
+
+    <div class="sec">
+      <h3>保存済みの音声</h3>
+      <div class="card"><div class="row"><span class="grow" id="cache-info" style="font-size:.84rem">—</span></div></div>
+      <p class="note">同じ文・同じ声の音声は保存され、別の日でも再利用されます（再生しても課金なし）。</p>
+    </div>
+
+    <div class="sec">
+      <h3>削除</h3>
+      <div class="stack">
+        <button class="btn danger" id="clear-cache">保存済みの音声を削除</button>
+        <button class="btn danger" id="clear-lib">ライブラリ（日付一覧）を空にする</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="file" style="display:none">
+<div id="toast"></div>
 
 <script>
+'use strict';
 // ═══════════════════════════════════════════
-//  Settings
+//  Constants
 // ═══════════════════════════════════════════
 const MODEL = 'tts-1';
-const ROLE_FACTOR = 1.2;   // your silence = original length × 1.2
-const ROLE_MIN = 1.5;      // at least 1.5 s
-const DECODE_SR = 24000;   // tts-1 outputs 24 kHz
+const ROLE_FACTOR = 1.2;    // your silence = original length × 1.2
+const ROLE_MIN = 1.5;       // at least 1.5 s
+const DECODE_SR = 24000;    // tts-1 outputs 24 kHz
+const DAY_GAP = 2.5;        // silence between days in "all days" mode
+const SPEEDS = [0.7, 0.8, 0.9, 1.0, 1.1, 1.25];
+const VOICES = ['onyx', 'echo', 'fable', 'alloy', 'nova', 'shimmer'];
+const WD = ['日', '月', '火', '水', '木', '金', '土'];
+const MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, '0');
+function loadJSON(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
+function saveJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
 
 // ═══════════════════════════════════════════
-//  State
+//  Settings (migrated from the previous version's dp_settings)
 // ═══════════════════════════════════════════
+const S = Object.assign({
+  shuVoice: 'onyx', mayaVoice: 'shimmer', diaryVoice: 'onyx',
+  speed: 0.9, pause: 1.0, readDiary: false,
+  repeat: 1, cont: 1, textMode: 0, role: null
+}, loadJSON('dp2_settings') || {});
+(function migrate() {
+  if (localStorage.getItem('dp2_settings')) return;
+  const o = loadJSON('dp_settings');
+  if (!o) return;
+  if (o.shuVoice) { S.shuVoice = o.shuVoice; S.diaryVoice = o.shuVoice; }
+  if (o.mayaVoice) S.mayaVoice = o.mayaVoice;
+  if (o.shuRate) S.speed = parseFloat(o.shuRate);
+  if (typeof o.pause === 'number') S.pause = o.pause;
+})();
+function saveS() { saveJSON('dp2_settings', S); }
+
+// ═══════════════════════════════════════════
+//  Parsing: diary file → days
+// ═══════════════════════════════════════════
+function cleanLine(s) {
+  return s
+    .replace(/ /g, ' ')
+    .replace(/\\([\\`*_{}\[\]()#+\-.!>~|"'])/g, '$1')   // Google Docs markdown escapes: \! \- \* …
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\s+$/, '');
+}
+function parseHeader(line) {
+  let m = line.match(/^\s*(?:#+\s*)?(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s*(\d{4})\s*(?:,?\s*\(?(?:Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day\)?)?\s*$/i);
+  if (m) return { y: +m[3], mo: MONTHS.indexOf(m[1].toLowerCase()) + 1, d: +m[2] };
+  m = line.match(/^\s*(?:#+\s*)?(\d{4})\s*[年\/\-.]\s*(\d{1,2})\s*[月\/\-.]\s*(\d{1,2})\s*日?\s*(?:[（(]\s*[日月火水木金土]\s*[)）])?\s*$/);
+  if (m) return { y: +m[1], mo: +m[2], d: +m[3] };
+  return null;
+}
+const SPK = /^\s*(Shu|Maya)\s*[:：]\s*(.+)$/i;
+
+function parseLibraryText(raw) {
+  const days = [];
+  let cur = null;
+  const start = (key, title) => { cur = { key, title, diary: [], turns: [] }; days.push(cur); };
+  for (const line of raw.replace(/\r\n?/g, '\n').split('\n').map(cleanLine)) {
+    if (!line.trim()) continue;
+    const h = parseHeader(line);
+    if (h) { start(`${h.y}-${pad(h.mo)}-${pad(h.d)}`, line.trim().replace(/^#+\s*/, '')); continue; }
+    if (!cur) start('', 'Dialog');
+    const m = line.match(SPK);
+    if (m) cur.turns.push({ speaker: m[1][0].toUpperCase() + m[1].slice(1).toLowerCase(), text: m[2].trim() });
+    else if (!cur.turns.length) cur.diary.push(line.trim());   // prose before the dialog = diary
+  }
+  // same date twice in one paste → last one wins
+  const map = new Map();
+  days.filter(d => d.turns.length).forEach(d => map.set(d.key, d));
+  return [...map.values()];
+}
+
+function dayDate(key) {
+  const m = key.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+}
+function dayLabel(d, short) {
+  const dt = dayDate(d.key);
+  if (!dt) return d.title || 'Dialog';
+  return short ? `${dt.getMonth() + 1}/${dt.getDate()}（${WD[dt.getDay()]}）`
+               : `${dt.getMonth() + 1}月${dt.getDate()}日（${WD[dt.getDay()]}）`;
+}
+
+// ═══════════════════════════════════════════
+//  Library
+// ═══════════════════════════════════════════
+let library = loadJSON('dp2_library') || [];
+if (!Array.isArray(library)) library = [];
+function sortLib() { library.sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0); }
+function saveLib() { if (!saveJSON('dp2_library', library)) toast('ライブラリを保存できませんでした（容量不足）'); }
+
+function importText(raw, replace) {
+  const days = parseLibraryText(raw || '');
+  if (!days.length) { toast('Shu: / Maya: の行が見つかりませんでした'); return false; }
+  const map = new Map(replace ? [] : library.map(d => [d.key, d]));
+  days.forEach(d => map.set(d.key, d));
+  library = [...map.values()];
+  sortLib();
+  saveLib();
+  const newest = days.reduce((a, b) => (b.key > a.key ? b : a));
+  selectDay(library.findIndex(d => d.key === newest.key));
+  toast(days.length === 1 ? `${dayLabel(newest)} を読み込みました` : `${days.length}日分を読み込みました`);
+  return true;
+}
+
+// ═══════════════════════════════════════════
+//  Day / turns state
+// ═══════════════════════════════════════════
+let dayIdx = -1;
 let turns = [];
 let currentIdx = 0;
-let running = false;      // playback chain in progress (incl. loading / gaps)
+let running = false;
 let finished = false;
-let repeatMode = 1;
-let autoPlay = false;
-let hideText = false;
-let pauseInterval = 1.0;
-let role = null;          // null | 'Shu' | 'Maya'
-
 let runId = 0;
 let cancelSeg = null;
-let segment = null;       // { kind: 'turn' | 'yours' | 'gap', idx }
+let segment = null;          // { kind: 'turn' | 'yours' | 'gap', idx }
 let ignorePauseUntil = 0;
 let unlocked = false;
 
-let totalEstSec = 0;
-let remainSec = 0;
-let countdownTimer = null;
-let countdownRunning = false;
-let turnRemainCache = [];
-
-const $ = id => document.getElementById(id);
-const player = new Audio();
-player.preload = 'auto';
+function buildTurns(d) {
+  const arr = [];
+  if (d.diary && d.diary.length) arr.push({ speaker: 'Diary', text: d.diary.join(' '), display: d.diary.join('\n'), diary: true });
+  d.turns.forEach(t => arr.push({ speaker: t.speaker, text: t.text }));
+  return arr;
+}
+const hasDiary = () => !!(turns[0] && turns[0].diary);
+function firstIdx(list = turns) {
+  if (list[0] && list[0].diary && !S.readDiary && list.length > 1) return 1;
+  return 0;
+}
+const who = t => t.diary ? 'diary' : t.speaker.toLowerCase();
+const getVoice = w => S[w + 'Voice'] || 'onyx';
+const clipKey = t => `${MODEL}|${getVoice(who(t))}|${t.text}`;
+const isMine = i => !!S.role && turns[i] && !turns[i].diary && turns[i].speaker === S.role;
 
 // ═══════════════════════════════════════════
 //  API key
 // ═══════════════════════════════════════════
 let apiKey = localStorage.getItem('oai_key') || sessionStorage.getItem('oai_key') || '';
-
-const keyInput = $('api-key-input');
-const keyStatus = $('api-key-status');
-const keySection = $('api-key-section');
-const saveKeyCheckbox = $('save-key-checkbox');
-
-saveKeyCheckbox.checked = !!localStorage.getItem('oai_key');
-
-if (apiKey) {
-  keyInput.value = apiKey;
-  keyStatus.textContent = '✓';
-  keySection.classList.add('valid');
-}
-
-keyInput.addEventListener('input', e => {
-  apiKey = e.target.value.trim();
-  persistKey();
-  if (apiKey.startsWith('sk-') && apiKey.length > 20) {
-    keyStatus.textContent = '✓';
-    keySection.classList.remove('error');
-    keySection.classList.add('valid');
-  } else {
-    keyStatus.textContent = '—';
-    keySection.classList.remove('valid', 'error');
-  }
-});
-
-saveKeyCheckbox.addEventListener('change', () => {
-  persistKey();
-  if (!saveKeyCheckbox.checked) localStorage.removeItem('oai_key');
-});
-
 function persistKey() {
-  if (saveKeyCheckbox.checked) {
-    localStorage.setItem('oai_key', apiKey);
-    sessionStorage.removeItem('oai_key');
-  } else {
-    sessionStorage.setItem('oai_key', apiKey);
-    localStorage.removeItem('oai_key');
-  }
+  if ($('key-save').checked) { localStorage.setItem('oai_key', apiKey); sessionStorage.removeItem('oai_key'); }
+  else { sessionStorage.setItem('oai_key', apiKey); localStorage.removeItem('oai_key'); }
 }
+function showKeyState(bad) {
+  const el = $('key-state');
+  if (bad) { el.textContent = '!'; el.className = 'bad'; return; }
+  const ok = apiKey.startsWith('sk-') && apiKey.length > 20;
+  el.textContent = ok ? '✓' : '—';
+  el.className = ok ? 'ok' : '';
+}
+const isAuthErr = e => /key|401|auth|incorrect/i.test(String(e && e.message));
 
 // ═══════════════════════════════════════════
-//  Persistent audio cache (IndexedDB)
-//  Key = model | voice | text  → same sentence is never paid for twice
-//  Audio is generated at 1.0×; speed is applied at playback
+//  Persistent audio cache (IndexedDB) — same DB/key format as before,
+//  so audio saved by the previous version is reused.
 // ═══════════════════════════════════════════
 let dbPromise = null;
 function openDB() {
@@ -745,24 +600,11 @@ async function idbReq(mode, fn) {
     t.onerror = t.onabort = () => rej(t.error);
   });
 }
-const idbGet   = k => idbReq('readonly',  s => s.get(k));
-const idbCount = k => idbReq('readonly',  s => s.count(k));
+const idbGet   = k => idbReq('readonly', s => s.get(k));
 const idbPut   = (k, v) => idbReq('readwrite', s => s.put(v, k));
 const idbClear = () => idbReq('readwrite', s => s.clear());
-async function idbStats() {
-  const db = await openDB();
-  return new Promise((res, rej) => {
-    let n = 0, bytes = 0;
-    const t = db.transaction('clips', 'readonly');
-    const c = t.objectStore('clips').openCursor();
-    c.onsuccess = () => {
-      const cur = c.result;
-      if (cur) { n++; bytes += (cur.value && cur.value.buf) ? cur.value.buf.byteLength : 0; cur.continue(); }
-    };
-    t.oncomplete = () => res({ n, bytes });
-    t.onerror = () => rej(t.error);
-  });
-}
+const idbKeys  = () => idbReq('readonly', s => s.getAllKeys());
+const idbCountAll = () => idbReq('readonly', s => s.count());
 
 let persistAsked = false;
 async function askPersist() {
@@ -771,12 +613,8 @@ async function askPersist() {
   try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) {}
 }
 
-const mem = new Map();       // key → { url, dur, buf }
-const inflight = new Map();  // key → Promise
-
-const who = t => t.speaker.toLowerCase();
-const clipKey = t => `${MODEL}|${getVoice(who(t))}|${t.text}`;
-const isMine = i => !!role && turns[i] && turns[i].speaker === role;
+const mem = new Map();        // key → { url, dur, buf }
+const inflight = new Map();   // key → Promise
 
 async function fetchTTS(text, voice) {
   const res = await fetch('https://api.openai.com/v1/audio/speech', {
@@ -786,7 +624,7 @@ async function fetchTTS(text, voice) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `HTTP ${res.status}`);
+    throw new Error((err && err.error && err.error.message) || `HTTP ${res.status}`);
   }
   return await res.arrayBuffer();
 }
@@ -800,10 +638,7 @@ function decodeBuf(buf) {
     if (p && p.catch) p.catch(rej);
   });
 }
-
-function wordEstimate(text) {
-  return text.trim().split(/\s+/).length / 150 * 60;
-}
+const wordEstimate = text => text.trim().split(/\s+/).length / 150 * 60;
 
 function getClip(t) {
   const key = clipKey(t);
@@ -819,7 +654,7 @@ function getClip(t) {
       let dur;
       try { dur = (await decodeBuf(buf)).duration; } catch (e) { dur = wordEstimate(t.text); }
       rec = { buf, dur, created: Date.now() };
-      idbPut(key, rec).then(() => { askPersist(); updateCacheInfo(); }).catch(() => {});
+      idbPut(key, rec).then(() => { askPersist(); }).catch(() => {});
     }
     const url = URL.createObjectURL(new Blob([rec.buf], { type: 'audio/mpeg' }));
     const clip = { url, dur: rec.dur, buf: rec.buf };
@@ -831,39 +666,50 @@ function getClip(t) {
   return p;
 }
 
-// Load already-saved clips for the current dialog (local only, no API calls)
-async function warmFromDB() {
-  for (const t of turns) {
-    const key = clipKey(t);
-    if (mem.has(key)) continue;
-    try { if (await idbCount(key)) await getClip(t); } catch (e) {}
+// Background fetch queue (max 3 at once)
+const queue = [];
+let active = 0;
+function enqueue(list) {
+  if (!apiKey) return;
+  for (const t of list) {
+    const k = clipKey(t);
+    if (mem.has(k) || inflight.has(k) || queue.some(q => clipKey(q) === k)) continue;
+    queue.push(t);
   }
-  refreshDownloadButtons();
+  pump();
+}
+function pump() {
+  while (active < 3 && queue.length) {
+    const t = queue.shift();
+    if (mem.has(clipKey(t))) continue;
+    active++;
+    getClip(t).then(clipReady).catch(e => {
+      if (isAuthErr(e)) { queue.length = 0; showKeyState(true); }
+    }).finally(() => { active--; pump(); });
+  }
+}
+let readyTimer = null;
+function clipReady() {
+  if (readyTimer) return;
+  readyTimer = setTimeout(() => { readyTimer = null; refreshDl(); recalc(); }, 250);
+}
+
+// Load already-saved clips for the current day (local only, no API calls)
+async function warmDay() {
+  const myDay = dayIdx;
+  let keys;
+  try { keys = new Set(await idbKeys()); } catch (e) { return; }
+  for (const t of turns) {
+    if (myDay !== dayIdx) return;
+    const k = clipKey(t);
+    if (!mem.has(k) && keys.has(k)) { try { await getClip(t); } catch (e) {} }
+  }
+  refreshDl();
   recalc();
 }
 
-async function updateCacheInfo() {
-  const el = $('cache-info');
-  try {
-    const { n, bytes } = await idbStats();
-    el.textContent = `Saved audio: ${n} clips · ${(bytes / 1048576).toFixed(1)} MB`;
-  } catch (e) {
-    el.textContent = 'Saved audio: unavailable (private mode?)';
-  }
-}
-
-$('cache-clear').addEventListener('click', async () => {
-  if (!confirm('Delete all saved audio?\n(It will be regenerated via the API when played.)')) return;
-  halt(); setPlayState('stopped');
-  try { await idbClear(); } catch (e) {}
-  mem.forEach(c => URL.revokeObjectURL(c.url));
-  mem.clear();
-  refreshDownloadButtons();
-  updateCacheInfo();
-});
-
 // ═══════════════════════════════════════════
-//  Silence (for gaps and your turns, played on the same player)
+//  Silence (gaps and your turns, played on the same element)
 // ═══════════════════════════════════════════
 function writeStr(v, o, s) { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); }
 function writeWavHeader(v, frames, sr) {
@@ -888,197 +734,123 @@ function silenceUrl(sec) {
 }
 
 // ═══════════════════════════════════════════
-//  Settings persistence (voices, speeds, pause) + last dialog
+//  Rendering
 // ═══════════════════════════════════════════
-function saveSettings() {
-  try {
-    localStorage.setItem('dp_settings', JSON.stringify({
-      shuVoice: getVoice('shu'), mayaVoice: getVoice('maya'),
-      shuRate: getRate('shu'), mayaRate: getRate('maya'),
-      pause: pauseInterval
-    }));
-  } catch (e) {}
-}
-function loadSettings() {
-  try {
-    const s = JSON.parse(localStorage.getItem('dp_settings') || 'null');
-    if (s) {
-      if (s.shuVoice) $('shu-voice').value = s.shuVoice;
-      if (s.mayaVoice) $('maya-voice').value = s.mayaVoice;
-      if (s.shuRate) $('shu-rate').value = s.shuRate;
-      if (s.mayaRate) $('maya-rate').value = s.mayaRate;
-      if (typeof s.pause === 'number') { $('pause-slider').value = s.pause; pauseInterval = s.pause; }
-    }
-    const d = localStorage.getItem('dp_dialog');
-    if (d) $('dialog-input').value = d;
-  } catch (e) {}
-  ['shu', 'maya'].forEach(w => $(`${w}-rate-val`).textContent = getRate(w).toFixed(2) + '×');
-  $('pause-val').textContent = pauseInterval.toFixed(1) + 's';
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const initials = s => s.replace(/[A-Za-z]+/g, w => w[0] + '_'.repeat(w.length - 1));
+
+function textHtml(t) {
+  const raw = t.display || t.text;
+  if (S.textMode === 1) return `<div class="tx initials">${esc(initials(raw))}</div>`;
+  if (S.textMode === 2) return `<div class="tx hidden" aria-hidden="true">${esc(raw)}</div>`;
+  return `<div class="tx">${esc(raw)}</div>`;
 }
 
-function getRate(w) { return parseFloat($(`${w}-rate`).value); }
-function getVoice(w) { return $(`${w}-voice`).value; }
-
-['shu', 'maya'].forEach(w => {
-  $(`${w}-rate`).addEventListener('input', e => {
-    const r = parseFloat(e.target.value);
-    $(`${w}-rate-val`).textContent = r.toFixed(2) + '×';
-    // Applies instantly — no re-fetch needed
-    if (segment && segment.kind === 'turn' && turns[segment.idx] && who(turns[segment.idx]) === w) {
-      player.playbackRate = r;
-    }
-    saveSettings();
-    if (turns.length) recalc();
-  });
-  $(`${w}-voice`).addEventListener('change', () => {
-    saveSettings();
-    if (!turns.length) return;
-    refreshDownloadButtons();
-    warmFromDB();
-  });
-});
-
-$('pause-slider').addEventListener('input', e => {
-  pauseInterval = parseFloat(e.target.value);
-  $('pause-val').textContent = pauseInterval.toFixed(1) + 's';
-  saveSettings();
-  if (turns.length) recalc();
-});
-
-// ═══════════════════════════════════════════
-//  Countdown
-// ═══════════════════════════════════════════
-function baseDur(t) {
-  const c = mem.get(clipKey(t));
-  return c ? c.dur : wordEstimate(t.text);
-}
-function turnWallSec(i) {
-  const t = turns[i];
-  const s = baseDur(t) / getRate(who(t));
-  return isMine(i) ? Math.max(ROLE_MIN, s * ROLE_FACTOR) : s;
-}
-function calcTotalSec() {
-  let total = 0;
-  turns.forEach((t, i) => { total += turnWallSec(i) + pauseInterval; });
-  return total;
-}
-function buildTurnRemainCache() {
-  turnRemainCache = [];
-  let remain = totalEstSec;
-  turns.forEach((t, i) => {
-    turnRemainCache.push(remain);
-    remain -= turnWallSec(i) + pauseInterval;
-  });
-}
-function recalc() {
-  totalEstSec = calcTotalSec();
-  buildTurnRemainCache();
-  if (!countdownRunning) remainSec = turnRemainCache[currentIdx] ?? totalEstSec;
-  $('status-total').textContent = fmtTime(totalEstSec).replace('-', '') + ' total';
-  updateCountdownDisplay();
-}
-function fmtTime(sec) {
-  const s = Math.max(0, Math.ceil(sec));
-  return `-${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-}
-function startCountdown() {
-  if (countdownRunning) return;
-  countdownRunning = true;
-  countdownTimer = setInterval(() => { remainSec = Math.max(0, remainSec - 0.1); updateCountdownDisplay(); }, 100);
-}
-function pauseCountdown() {
-  countdownRunning = false;
-  clearInterval(countdownTimer);
-  countdownTimer = null;
-}
-function resetCountdown() { pauseCountdown(); remainSec = totalEstSec; updateCountdownDisplay(); }
-function updateCountdownDisplay() {
-  const el = $('status-countdown');
-  if (!el || totalEstSec === 0) return;
-  el.textContent = fmtTime(remainSec);
-  el.classList.toggle('near-end', remainSec <= 10 && countdownRunning);
-}
-
-// ═══════════════════════════════════════════
-//  Dialog parsing & rendering
-// ═══════════════════════════════════════════
-function parseDialog(text) {
-  return text.trim().split('\n')
-    .map(line => line.match(/^(Shu|Maya)\s*:\s*(.+)/i))
-    .filter(Boolean)
-    .map(m => ({ speaker: m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase(), text: m[2].trim() }));
-}
-
-function escHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
+let diaryOpen = false;
 function renderTurns() {
-  const list = $('turn-list');
+  const list = $('list');
   list.innerHTML = '';
+  const offset = hasDiary() ? 1 : 0;
   turns.forEach((t, i) => {
     const div = document.createElement('div');
-    div.className = `turn ${who(t)}${isMine(i) ? ' mine' : ''}`;
+    const w = who(t);
+    div.className = `turn ${w}`;
+    if (t.diary) {
+      if (!diaryOpen) div.classList.add('collapsed');
+      if (!S.readDiary) div.classList.add('skip');
+    }
     div.dataset.idx = i;
-    const fname = `turn_${String(i + 1).padStart(2, '0')}_${who(t)}.mp3`;
+    const head = t.diary
+      ? `<span class="spk">Diary</span>${S.readDiary ? '' : '<span class="tag muted">タップで読み上げ</span>'}`
+      : `<span class="spk">${t.speaker}</span>${isMine(i) ? '<span class="tag">YOU</span>' : ''}<span class="speak-now">🎙 your turn</span>`;
+    const num = t.diary ? '' : `#${i + 1 - offset}`;
     div.innerHTML = `
-      <div class="turn-header">
-        <span class="turn-speaker">${t.speaker}</span>
-        ${isMine(i) ? '<span class="you-tag">YOU</span>' : ''}
-        <span class="speak-now">🎙 speak now</span>
-        <span class="turn-num">#${i + 1}</span>
-      </div>
-      <div class="turn-text">${hideText ? '・・・' : escHtml(t.text)}</div>
-      <div class="turn-footer">
-        <a class="dl-btn" data-idx="${i}" download="${fname}">↓ mp3</a>
-      </div>
-      <div class="playing-bar"></div>`;
+      <div class="th">${head}<span class="num">${num}</span><a class="dl" data-idx="${i}" download="${fileStem()}_${String(i + 1 - offset).padStart(2, '0')}_${w}.mp3">↓</a></div>
+      ${textHtml(t)}
+      ${t.diary ? `<button class="more">${diaryOpen ? '閉じる' : '続きを表示'}</button>` : ''}
+      <div class="bar"></div>`;
     div.addEventListener('click', e => {
-      if (e.target.closest('.dl-btn')) return;
+      if (e.target.closest('.dl')) return;
+      if (e.target.closest('.more')) {
+        diaryOpen = !diaryOpen;
+        div.classList.toggle('collapsed', !diaryOpen);
+        e.target.textContent = diaryOpen ? '閉じる' : '続きを表示';
+        return;
+      }
       unlock();
       run(i);
     });
     list.appendChild(div);
   });
-  refreshDownloadButtons();
+  refreshDl();
+  markCurrent(currentIdx, false);
 }
 
-function refreshDownloadButtons() {
-  document.querySelectorAll('.dl-btn').forEach(btn => {
-    const t = turns[parseInt(btn.dataset.idx)];
-    const clip = t && mem.get(clipKey(t));
-    if (clip) { btn.href = clip.url; btn.classList.add('ready'); }
-    else { btn.removeAttribute('href'); btn.classList.remove('ready'); }
+function fileStem() {
+  const d = library[dayIdx];
+  return d && d.key ? d.key : 'dialog';
+}
+
+function refreshDl() {
+  document.querySelectorAll('.dl').forEach(a => {
+    const t = turns[+a.dataset.idx];
+    const c = t && mem.get(clipKey(t));
+    if (c) { a.href = c.url; a.classList.add('ready'); }
+    else { a.removeAttribute('href'); a.classList.remove('ready'); }
   });
 }
 
-function highlightTurn(idx, scroll = true) {
-  document.querySelectorAll('.turn').forEach((el, i) => {
-    el.classList.toggle('playing', i === idx);
+function markCurrent(idx, scroll = true) {
+  document.querySelectorAll('.turn').forEach(el => {
+    const i = +el.dataset.idx;
+    el.classList.toggle('cur', i === idx);
     if (i !== idx) el.classList.remove('yours-now');
-    const bar = el.querySelector('.playing-bar');
+    const bar = el.querySelector('.bar');
     if (bar) bar.style.width = '0%';
   });
   if (scroll) scrollToTurn(idx);
 }
-
 function scrollToTurn(idx) {
-  const container = $('turn-scroll');
+  const box = $('scroll');
   const el = document.querySelector(`.turn[data-idx="${idx}"]`);
-  if (!el || !container) return;
-  container.scrollTo({ top: el.offsetTop - container.offsetTop - 8, behavior: 'smooth' });
+  if (!el) return;
+  const top = el.offsetTop - box.offsetTop - Math.round(box.clientHeight * 0.18);
+  box.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
 }
-
 function setYoursNow(idx, on) {
   const el = document.querySelector(`.turn[data-idx="${idx}"]`);
   if (el) el.classList.toggle('yours-now', on);
+  if (on && el && el.classList.contains('diary')) el.classList.remove('yours-now');
 }
 
-// Progress bar on the current card
+function renderHeader() {
+  const d = library[dayIdx];
+  const btn = $('day-btn');
+  btn.classList.toggle('has-days', library.length > 0);
+  if (!d) {
+    $('day-title').textContent = 'Dialog Player';
+    $('day-sub').textContent = 'shadowing / listening';
+  } else {
+    $('day-title').textContent = dayLabel(d);
+    const dt = dayDate(d.key);
+    $('day-sub').textContent = `${dt ? dt.getFullYear() + ' · ' : ''}${d.turns.length}ターン · ${fmt(totalSec)}`;
+  }
+  $('day-prev').disabled = dayIdx <= 0;
+  $('day-next').disabled = dayIdx < 0 || dayIdx >= library.length - 1;
+}
+
+function showPlayer(on) {
+  $('panel').style.display = on ? '' : 'none';
+  $('empty').style.display = on ? 'none' : 'flex';
+  if (!on) $('list').innerHTML = '';
+}
+
+// Progress bar on the current card + countdown (only while visible)
 (function tick() {
   requestAnimationFrame(tick);
   if (!segment || document.hidden) return;
-  const bar = document.querySelector(`.turn[data-idx="${segment.idx}"] .playing-bar`);
+  updateTime();
+  const bar = document.querySelector(`.turn[data-idx="${segment.idx}"] .bar`);
   if (!bar) return;
   if (segment.kind === 'gap') { bar.style.width = '100%'; return; }
   const d = player.duration;
@@ -1086,10 +858,66 @@ function setYoursNow(idx, on) {
 })();
 
 // ═══════════════════════════════════════════
+//  Time / countdown
+// ═══════════════════════════════════════════
+let suffix = [];
+let totalSec = 0;
+function baseDur(t) { const c = mem.get(clipKey(t)); return c ? c.dur : wordEstimate(t.text); }
+function wallSec(i) {
+  const s = baseDur(turns[i]) / S.speed;
+  return isMine(i) ? Math.max(ROLE_MIN, s * ROLE_FACTOR) : s;
+}
+function recalc() {
+  const n = turns.length, f = firstIdx();
+  suffix = new Array(n + 1).fill(0);
+  for (let i = n - 1; i >= 0; i--) {
+    suffix[i] = i < f ? suffix[i + 1] : suffix[i + 1] + wallSec(i) + (i < n - 1 ? S.pause : 0);
+  }
+  totalSec = suffix[f] || 0;
+  renderHeader();
+  updateTime();
+}
+function remaining() {
+  if (!turns.length) return 0;
+  if (!segment || segment.idx !== currentIdx) return suffix[Math.max(currentIdx, firstIdx())] || 0;
+  const last = currentIdx >= turns.length - 1;
+  const d = player.duration, c = player.currentTime;
+  const left = (d && isFinite(d)) ? Math.max(0, d - c) : 0;
+  let r = suffix[currentIdx + 1] || 0;
+  if (segment.kind === 'gap') r += left;
+  else if (segment.kind === 'turn') r += left / (player.playbackRate || 1) + (last ? 0 : S.pause);
+  else r += left + (last ? 0 : S.pause);
+  return r;
+}
+function fmt(sec) {
+  const s = Math.max(0, Math.ceil(sec));
+  return `${Math.floor(s / 60)}:${pad(s % 60)}`;
+}
+function updateTime() {
+  if (!turns.length) return;
+  const r = finished ? 0 : remaining();
+  $('st-time').textContent = '-' + fmt(r);
+  $('st-total').textContent = '/ ' + fmt(totalSec);
+  $('dprog-fill').style.width = totalSec ? Math.min(100, Math.max(0, (1 - r / totalSec) * 100)).toFixed(1) + '%' : '0%';
+}
+function updateStatus(msg, err) {
+  const el = $('st-left');
+  el.classList.toggle('err', !!err);
+  if (typeof msg === 'string') { el.textContent = msg; return; }
+  const t = turns[currentIdx];
+  if (!t) { el.textContent = '—'; return; }
+  const off = hasDiary() ? 1 : 0;
+  const count = turns.length - off;
+  el.textContent = t.diary ? `日記 · ${count}ターン` : `${t.speaker} · ${currentIdx + 1 - off} / ${count}`;
+}
+
+// ═══════════════════════════════════════════
 //  Playback engine
 //  One <audio> element plays everything (turns, gaps, your-turn silences)
 //  and chains via 'ended' events — no timers — so it keeps going with the screen off.
 // ═══════════════════════════════════════════
+const player = new Audio();
+player.preload = 'auto';
 const CANCEL = Symbol('cancel');
 function alive(id) { if (id !== runId) throw CANCEL; }
 
@@ -1098,20 +926,17 @@ function setPitch() {
   player.webkitPreservesPitch = true;
   player.mozPreservesPitch = true;
 }
-
 function stopPlayer() {
   ignorePauseUntil = performance.now() + 600;
   player.onended = player.onerror = null;
   if (!player.paused) player.pause();
   segment = null;
 }
-
 function halt() {
   runId++;
   running = false;
   if (cancelSeg) { const c = cancelSeg; cancelSeg = null; c(); }
   stopPlayer();
-  pauseCountdown();
 }
 
 function playSeg(url, rate, id, seg) {
@@ -1128,56 +953,47 @@ function playSeg(url, rate, id, seg) {
     player.play().then(() => {
       if (id !== runId) return;
       setPlayState('playing');
-      startCountdown();
       setMsState('playing');
     }).catch(err => { if (id === runId) { cancelSeg = null; reject(err); } });
   });
 }
-
-async function gap(id) {
-  if (pauseInterval <= 0) return;
-  await playSeg(silenceUrl(pauseInterval), 1, id, { kind: 'gap', idx: currentIdx });
+async function gap(id, sec = S.pause) {
+  if (sec <= 0) return;
+  await playSeg(silenceUrl(sec), 1, id, { kind: 'gap', idx: currentIdx });
   alive(id);
-}
-
-function prefetchAhead(idx) {
-  if (!autoPlay) return;
-  for (let j = idx + 1; j <= idx + 3 && j < turns.length; j++) {
-    const t = turns[j];
-    if (mem.has(clipKey(t))) continue;
-    getClip(t).then(() => { refreshDownloadButtons(); recalc(); }).catch(() => {});
-  }
 }
 
 async function playTurnOnce(idx, id) {
   currentIdx = idx;
-  highlightTurn(idx, !document.hidden);
+  markCurrent(idx, !document.hidden);
   updateStatus();
   setMediaMeta(idx);
-  if (turnRemainCache.length > idx) { remainSec = turnRemainCache[idx]; updateCountdownDisplay(); }
+  savePos();
 
   const t = turns[idx];
   let clip = mem.get(clipKey(t));
   if (!clip) {
     setPlayState('loading');
-    pauseCountdown();
     clip = await getClip(t);
     alive(id);
-    refreshDownloadButtons();
+    refreshDl();
     recalc();
-    remainSec = turnRemainCache[idx] ?? remainSec;
   }
-  prefetchAhead(idx);
+  // look ahead: rest of today, and the start of tomorrow near the end in "all days" mode
+  enqueue(turns.slice(idx + 1, idx + 5));
+  if (S.cont === 2 && idx >= turns.length - 3 && library[dayIdx + 1]) {
+    const nt = buildTurns(library[dayIdx + 1]);
+    enqueue(nt.slice(firstIdx(nt), firstIdx(nt) + 3));
+  }
 
-  const rate = getRate(who(t));
   if (isMine(idx)) {
     setYoursNow(idx, true);
     updateStatus('🎙 Your turn');
-    const wall = Math.max(ROLE_MIN, clip.dur / rate * ROLE_FACTOR);
+    const wall = Math.max(ROLE_MIN, clip.dur / S.speed * ROLE_FACTOR);
     await playSeg(silenceUrl(wall), 1, id, { kind: 'yours', idx });
     setYoursNow(idx, false);
   } else {
-    await playSeg(clip.url, rate, id, { kind: 'turn', idx });
+    await playSeg(clip.url, S.speed, id, { kind: 'turn', idx });
   }
   alive(id);
 }
@@ -1189,41 +1005,52 @@ async function run(startIdx) {
   running = true;
   finished = false;
   currentIdx = Math.max(0, Math.min(turns.length - 1, startIdx));
+  if (S.cont) enqueue([...turns.slice(currentIdx), ...turns.slice(firstIdx(), currentIdx)]);
   try {
     for (;;) {
       let rep = 0;
+      const maxRep = S.repeat === 999 ? Infinity : S.repeat;
       for (;;) {
         await playTurnOnce(currentIdx, id);
         rep++;
-        const maxRep = repeatMode === 999 ? Infinity : repeatMode;
         if (rep >= maxRep) break;
         await gap(id);
       }
-      if (!autoPlay) break;
-      if (currentIdx + 1 >= turns.length) { finished = true; break; }
+      if (!S.cont) break;
+      if (currentIdx + 1 >= turns.length) {
+        if (S.cont === 2 && dayIdx + 1 < library.length) {
+          await gap(id, DAY_GAP);
+          selectDay(dayIdx + 1, true);
+          currentIdx = firstIdx();
+          enqueue(turns.slice(currentIdx));
+          continue;
+        }
+        finished = true;
+        break;
+      }
       await gap(id);
       currentIdx++;
     }
-    // Reached the end normally
     running = false;
     segment = null;
-    pauseCountdown();
     setPlayState('stopped');
     setMsState('paused');
-    if (finished) { remainSec = 0; updateCountdownDisplay(); updateStatus('finished'); }
-    else updateStatus();
+    if (finished) { updateStatus('おわり'); updateTime(); }
+    else { updateStatus(); updateTime(); }
   } catch (e) {
     if (e === CANCEL) return;
     running = false;
     segment = null;
     stopPlayer();
-    pauseCountdown();
     setPlayState('stopped');
     setMsState('paused');
-    updateStatus(`Error: ${e.message || e}`);
-    if (/key|401|auth|incorrect/i.test(String(e.message))) {
-      keySection.classList.add('error');
-      keyStatus.textContent = '!';
+    updateTime();
+    if (/API key needed/.test(e.message)) {
+      updateStatus('APIキーが必要です（設定）', true);
+      toast('まだ保存されていない音声です。設定でAPIキーを入れてください');
+    } else {
+      updateStatus(`Error: ${e.message || e}`, true);
+      if (isAuthErr(e)) showKeyState(true);
     }
   }
 }
@@ -1232,26 +1059,26 @@ function pauseNow() {
   halt();
   setPlayState('stopped');
   setMsState('paused');
-  updateStatus('paused');
+  updateStatus('一時停止');
+  updateTime();
 }
-
 function togglePlay() {
   if (!turns.length) return;
   if (running) pauseNow();
-  else run(finished ? 0 : currentIdx);
+  else run(finished ? firstIdx() : currentIdx);
 }
-function prevTurn() { if (turns.length) run(Math.max(0, currentIdx - 1)); }
-function nextTurn() { if (turns.length) run(Math.min(turns.length - 1, currentIdx + 1)); }
+function prevTurn() { if (turns.length) run(Math.max(Math.min(firstIdx(), currentIdx), currentIdx - 1)); }
+function nextTurn() {
+  if (!turns.length) return;
+  if (currentIdx + 1 < turns.length) run(currentIdx + 1);
+  else if (S.cont === 2 && dayIdx + 1 < library.length) { selectDay(dayIdx + 1); run(firstIdx()); }
+}
 
-// iOS: "unlock" the shared player inside the tap so later play() calls are allowed
+// iOS: unlock the shared player inside the tap so later play() calls are allowed
 function unlock() {
   if (unlocked) return;
   unlocked = true;
-  try {
-    player.src = silenceUrl(0.1);
-    const p = player.play();
-    if (p && p.catch) p.catch(() => {});
-  } catch (e) {}
+  try { player.src = silenceUrl(0.1); const p = player.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
 }
 
 // Paused by the OS (call, headphones unplugged, etc.)
@@ -1260,10 +1087,10 @@ player.addEventListener('pause', () => {
 });
 
 function setPlayState(state) {
-  $('play-icon').style.display    = state === 'stopped' ? 'block' : 'none';
-  $('pause-icon').style.display   = state === 'playing' ? 'block' : 'none';
-  $('loading-icon').style.display = state === 'loading' ? 'block' : 'none';
-  $('play-btn').classList.toggle('loading', state === 'loading');
+  $('ic-play').style.display  = state === 'stopped' ? 'block' : 'none';
+  $('ic-pause').style.display = state === 'playing' ? 'block' : 'none';
+  $('ic-load').style.display  = state === 'loading' ? 'block' : 'none';
+  $('play').classList.toggle('loading', state === 'loading');
 }
 
 // ═══════════════════════════════════════════
@@ -1271,166 +1098,344 @@ function setPlayState(state) {
 // ═══════════════════════════════════════════
 function setMediaMeta(i) {
   if (!('mediaSession' in navigator) || !window.MediaMetadata) return;
-  const t = turns[i];
+  const t = turns[i], d = library[dayIdx];
+  if (!t) return;
+  const off = hasDiary() ? 1 : 0;
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: hideText ? `Turn ${i + 1} / ${turns.length}` : t.text.slice(0, 100),
-      artist: isMine(i) ? `${t.speaker} — your turn` : t.speaker,
-      album: `Dialog Player · ${i + 1}/${turns.length}`
+      title: S.textMode ? `${t.diary ? 'Diary' : `Turn ${i + 1 - off}`}` : t.text.slice(0, 110),
+      artist: t.diary ? 'Diary' : isMine(i) ? `${t.speaker} — your turn` : t.speaker,
+      album: d ? `${dayLabel(d)} · Dialog Player` : 'Dialog Player'
     });
   } catch (e) {}
 }
-function setMsState(s) {
-  try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = s; } catch (e) {}
-}
+function setMsState(s) { try { if ('mediaSession' in navigator) navigator.mediaSession.playbackState = s; } catch (e) {} }
 if ('mediaSession' in navigator) {
-  const ms = navigator.mediaSession;
   const handlers = {
-    play: () => { if (!running) run(finished ? 0 : currentIdx); },
+    play: () => { if (!running) { unlock(); run(finished ? firstIdx() : currentIdx); } },
     pause: () => { if (running) pauseNow(); },
     stop: () => { if (running) pauseNow(); },
     previoustrack: prevTurn,
     nexttrack: nextTurn,
   };
-  for (const [action, fn] of Object.entries(handlers)) {
-    try { ms.setActionHandler(action, fn); } catch (e) {}
-  }
+  for (const [a, fn] of Object.entries(handlers)) { try { navigator.mediaSession.setActionHandler(a, fn); } catch (e) {} }
 }
-
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && turns.length && (running || segment)) highlightTurn(currentIdx);
+  if (!document.hidden && turns.length) { markCurrent(currentIdx); updateTime(); }
 });
 
 // ═══════════════════════════════════════════
-//  Buttons
+//  Day selection & position memory
 // ═══════════════════════════════════════════
-$('load-btn').addEventListener('click', () => {
-  const raw = $('dialog-input').value;
-  const newTurns = parseDialog(raw);
-  if (!newTurns.length) { alert('No turns found.\nFormat: Shu: ... or Maya: ...'); return; }
-  halt();
-  setPlayState('stopped');
-  try { localStorage.setItem('dp_dialog', raw); } catch (e) {}
-  turns = newTurns;
-  currentIdx = 0;
+function selectDay(i, fromEngine = false) {
+  if (i < 0 || i >= library.length) return;
+  if (!fromEngine) { halt(); setPlayState('stopped'); setMsState('paused'); }
+  dayIdx = i;
+  turns = buildTurns(library[i]);
+  currentIdx = firstIdx();
   finished = false;
+  diaryOpen = false;
+  showPlayer(true);
   renderTurns();
-  $('empty-state').style.display = 'none';
-  $('input-section').style.display = 'none';
-  $('load-btn').style.display = 'none';
-  $('edit-btn').classList.add('visible');
-  $('player-section').classList.add('visible');
-  $('turn-count-label').textContent = `${turns.length} turns`;
   recalc();
-  resetCountdown();
   updateStatus();
-  scrollToTurn(0);
-  warmFromDB();
-});
-
-$('play-btn').addEventListener('click', () => { unlock(); togglePlay(); });
-$('prev-btn').addEventListener('click', () => { unlock(); prevTurn(); });
-$('next-btn').addEventListener('click', () => { unlock(); nextTurn(); });
-
-$('repeat-btn').addEventListener('click', () => {
-  if (repeatMode === 1) repeatMode = 3;
-  else if (repeatMode === 3) repeatMode = 999;
-  else repeatMode = 1;
-  const btn = $('repeat-btn');
-  btn.textContent = repeatMode === 999 ? 'Repeat ∞' : `Repeat ×${repeatMode}`;
-  btn.classList.toggle('on', repeatMode !== 1);
-});
-
-function setAuto(on) {
-  autoPlay = on;
-  $('auto-btn').classList.toggle('on', autoPlay);
+  $('scroll').scrollTop = 0;
+  savePos();
+  warmDay();
 }
-$('auto-btn').addEventListener('click', () => setAuto(!autoPlay));
-
-$('hide-btn').addEventListener('click', () => {
-  hideText = !hideText;
-  const btn = $('hide-btn');
-  btn.textContent = hideText ? 'Hide text' : 'Show text';
-  btn.classList.toggle('on', hideText);
-  if (!turns.length) return;
-  renderTurns();
-  if (running || segment) highlightTurn(currentIdx, false);
-  setMediaMeta(currentIdx);
-});
-
-$('role-btn').addEventListener('click', () => {
-  role = role === null ? 'Shu' : role === 'Shu' ? 'Maya' : null;
-  const btn = $('role-btn');
-  btn.textContent = role ? `Role: ${role}` : 'Role: off';
-  btn.classList.toggle('on', !!role);
-  btn.classList.toggle('shu', role === 'Shu');
-  btn.classList.toggle('maya', role === 'Maya');
-  if (role && !autoPlay) setAuto(true);   // roleplay only makes sense as a flowing conversation
-  if (!turns.length) return;
-  renderTurns();
-  if (running || segment) highlightTurn(currentIdx, false);
-  recalc();
-});
-
-$('edit-btn').addEventListener('click', () => {
-  $('input-section').style.display = '';
-  $('load-btn').style.display = '';
-  $('edit-btn').classList.remove('visible');
-  $('player-section').classList.remove('visible');
-  $('empty-state').style.display = 'none';
-  updateCacheInfo();
-});
-
-function updateStatus(msg) {
-  const left = $('status-left');
-  if (!left) return;
-  if (typeof msg === 'string') { left.textContent = msg; return; }
-  if (!turns.length) { left.textContent = '—'; return; }
-  left.textContent = `${currentIdx + 1} / ${turns.length}  ·  ${turns[currentIdx].speaker}`;
+function savePos() {
+  const d = library[dayIdx];
+  if (d) saveJSON('dp2_pos', { key: d.key, idx: currentIdx });
 }
 
 // ═══════════════════════════════════════════
-//  Download all → one WAV
-//  decode each clip → join with pause gaps → 16-bit PCM WAV
-//  With Role on, your lines become silence (roleplay track)
+//  Chips
 // ═══════════════════════════════════════════
-$('dl-all-btn').addEventListener('click', async () => {
-  const btn = $('dl-all-btn');
-  const prog = $('dl-all-progress');
-  if (!turns.length || btn.classList.contains('loading')) return;
+function renderChips() {
+  const c = (id, val, on, extra) => {
+    const el = $(id);
+    el.querySelector('b').textContent = val;
+    el.className = 'chip' + (on ? ' on' : '') + (extra ? ' ' + extra : '');
+  };
+  c('c-repeat', S.repeat === 999 ? '∞' : `×${S.repeat}`, S.repeat !== 1);
+  c('c-cont', ['1ターン', 'この日', '全日'][S.cont], S.cont === 2);
+  c('c-text', ['全文', '頭文字', '隠す'][S.textMode], S.textMode !== 0);
+  c('c-role', S.role || 'なし', !!S.role, S.role ? S.role.toLowerCase() : '');
+  c('c-speed', `${+S.speed.toFixed(2)}×`, S.speed !== 1);
+}
+$('c-repeat').addEventListener('click', () => {
+  S.repeat = S.repeat === 1 ? 3 : S.repeat === 3 ? 999 : 1;
+  saveS(); renderChips();
+});
+$('c-cont').addEventListener('click', () => {
+  S.cont = (S.cont + 1) % 3;
+  saveS(); renderChips();
+  toast(['1ターンずつ再生', 'この日の最後まで続けて再生', '次の日へも続けて再生'][S.cont]);
+});
+$('c-text').addEventListener('click', () => {
+  S.textMode = (S.textMode + 1) % 3;
+  saveS(); renderChips();
+  if (turns.length) { renderTurns(); setMediaMeta(currentIdx); }
+});
+$('c-role').addEventListener('click', () => {
+  S.role = S.role === null ? 'Shu' : S.role === 'Shu' ? 'Maya' : null;
+  if (S.role && !S.cont) S.cont = 1;   // roleplay only makes sense as a flowing conversation
+  saveS(); renderChips();
+  if (S.role) toast(`${S.role} の行は無音になります。そこで声に出して言ってみましょう`);
+  if (turns.length) { renderTurns(); recalc(); }
+});
+$('c-speed').addEventListener('click', () => {
+  const nextS = SPEEDS.find(v => v > S.speed + 0.001);
+  setSpeed(nextS === undefined ? SPEEDS[0] : nextS);
+});
+function setSpeed(v) {
+  S.speed = Math.round(v * 100) / 100;
+  saveS(); renderChips();
+  $('speed').value = S.speed;
+  $('speed-val').textContent = S.speed.toFixed(2) + '×';
+  if (segment && segment.kind === 'turn') { player.playbackRate = S.speed; setPitch(); }
+  if (turns.length) recalc();
+}
 
-  btn.classList.add('loading');
-  prog.textContent = `0 / ${turns.length}`;
+// ═══════════════════════════════════════════
+//  Sheets (Android back button closes them)
+// ═══════════════════════════════════════════
+const sheetStack = [];
+function openSheet(id) {
+  const el = $(id);
+  if (el.classList.contains('open')) return;
+  el.style.zIndex = 20 + sheetStack.length;   // a sheet opened from another sheet goes on top
+  el.classList.add('open');
+  sheetStack.push(id);
+  try { history.pushState({ sheetDepth: sheetStack.length }, ''); } catch (e) {}
+}
+function onSheetPop(e) {
+  const target = (e.state && e.state.sheetDepth) || 0;   // history.go(-n) fires only one popstate
+  while (sheetStack.length > target) $(sheetStack.pop()).classList.remove('open');
+}
+function closeSheet() { if (sheetStack.length) history.back(); }
+window.addEventListener('popstate', onSheetPop);
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeSheet));
+function closeAllThen(fn) {
+  const n = sheetStack.length;
+  if (!n) { fn(); return; }
+  const onPop = () => {
+    if (sheetStack.length) return;
+    window.removeEventListener('popstate', onPop);
+    fn();
+  };
+  window.addEventListener('popstate', onPop);
+  history.go(-n);
+}
 
-  const parts = [];   // Float32Array or number (silent samples)
-  let firstError = null;
-
-  for (let i = 0; i < turns.length; i++) {
-    const t = turns[i];
-    try {
-      const clip = await getClip(t);
-      if (isMine(i)) {
-        parts.push(Math.round(Math.max(ROLE_MIN, clip.dur * ROLE_FACTOR) * DECODE_SR));
-      } else {
-        const ab = await decodeBuf(clip.buf);
-        parts.push(ab.getChannelData(0));
-      }
-      if (i < turns.length - 1 && pauseInterval > 0) parts.push(Math.round(pauseInterval * DECODE_SR));
-    } catch (e) {
-      console.warn(`Turn ${i + 1} error:`, e.message);
-      firstError = firstError || e;
+// Day picker
+function renderDayList() {
+  const box = $('day-list');
+  box.innerHTML = '';
+  if (!library.length) { box.innerHTML = '<p class="note">まだダイアログがありません。</p>'; return; }
+  let lastMonth = '';
+  for (let i = library.length - 1; i >= 0; i--) {
+    const d = library[i];
+    const dt = dayDate(d.key);
+    const month = dt ? `${dt.getFullYear()}年${dt.getMonth() + 1}月` : 'その他';
+    if (month !== lastMonth) {
+      const h = document.createElement('div');
+      h.className = 'month'; h.textContent = month;
+      box.appendChild(h);
+      lastMonth = month;
     }
-    prog.textContent = `${i + 1} / ${turns.length}`;
+    const b = document.createElement('button');
+    b.className = 'day' + (i === dayIdx ? ' cur' : '');
+    b.dataset.i = i;
+    const first = d.turns[0] ? `${d.turns[0].speaker}: ${d.turns[0].text}` : '';
+    b.innerHTML = `<span class="d1">${esc(dayLabel(d, true))}</span><span class="d2">${esc(first)}</span><span class="d3">${d.turns.length}</span>`;
+    b.addEventListener('click', () => { closeSheet(); selectDay(i); });
+    box.appendChild(b);
   }
-  refreshDownloadButtons();
+  markSavedDays();
+}
+async function markSavedDays() {
+  let keys;
+  try { keys = new Set(await idbKeys()); } catch (e) { return; }
+  document.querySelectorAll('#day-list .day').forEach(b => {
+    const ts = buildTurns(library[+b.dataset.i]);
+    const all = ts.slice(firstIdx(ts)).every(t => keys.has(clipKey(t)) || mem.has(clipKey(t)));
+    if (all) {
+      const d3 = b.querySelector('.d3');
+      d3.innerHTML = `<span class="saved">✓</span> ${d3.textContent}`;
+    }
+  });
+}
 
-  const frames = parts.reduce((s, p) => s + (typeof p === 'number' ? p : p.length), 0);
-  if (!frames) {
-    btn.classList.remove('loading');
-    prog.textContent = '';
-    updateStatus(`Error: ${firstError ? firstError.message : 'no audio'}`);
+$('day-btn').addEventListener('click', () => {
+  if (!library.length) { openSheet('sheet-lib'); return; }
+  renderDayList();
+  openSheet('sheet-days');
+  requestAnimationFrame(() => {
+    const cur = document.querySelector('#day-list .day.cur');
+    if (cur) cur.scrollIntoView({ block: 'center' });
+  });
+});
+$('day-prev').addEventListener('click', () => selectDay(dayIdx - 1));
+$('day-next').addEventListener('click', () => selectDay(dayIdx + 1));
+$('days-add').addEventListener('click', () => openSheet('sheet-lib'));
+
+// Library import
+$('empty-file').addEventListener('click', () => $('file').click());
+$('empty-paste').addEventListener('click', () => openSheet('sheet-lib'));
+$('lib-file').addEventListener('click', () => $('file').click());
+$('file').addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  const text = await f.text();
+  closeAllThen(() => importText(text, false));
+});
+$('lib-merge').addEventListener('click', () => {
+  const raw = $('lib-text').value;
+  if (!parseLibraryText(raw).length) { toast('Shu: / Maya: の行が見つかりませんでした'); return; }
+  closeAllThen(() => { importText(raw, false); $('lib-text').value = ''; });
+});
+$('lib-replace').addEventListener('click', () => {
+  const raw = $('lib-text').value;
+  if (!parseLibraryText(raw).length) { toast('Shu: / Maya: の行が見つかりませんでした'); return; }
+  if (!confirm('今のライブラリをすべて置き換えますか？\n（保存済みの音声は消えません）')) return;
+  closeAllThen(() => { importText(raw, true); $('lib-text').value = ''; });
+});
+
+// ═══════════════════════════════════════════
+//  Settings sheet
+// ═══════════════════════════════════════════
+function fillVoices(id, val) {
+  const sel = $(id);
+  sel.innerHTML = VOICES.map(v => `<option value="${v}">${v}</option>`).join('');
+  sel.value = val;
+}
+function openSettings() {
+  $('key').value = apiKey;
+  $('key-save').checked = !!localStorage.getItem('oai_key');
+  showKeyState();
+  $('speed').value = S.speed; $('speed-val').textContent = S.speed.toFixed(2) + '×';
+  $('pause').value = S.pause; $('pause-val').textContent = S.pause.toFixed(1) + 's';
+  $('read-diary').checked = S.readDiary;
+  fillVoices('v-shu', S.shuVoice); fillVoices('v-maya', S.mayaVoice); fillVoices('v-diary', S.diaryVoice);
+  const d = library[dayIdx];
+  $('prep-day').disabled = $('dl-day').disabled = !d;
+  $('lib-info').textContent = library.length
+    ? `${library.length}日分（${dayLabel(library[0], true)} 〜 ${dayLabel(library[library.length - 1], true)}）`
+    : 'まだありません';
+  updateCacheInfo();
+  openSheet('sheet-set');
+}
+$('menu-btn').addEventListener('click', openSettings);
+$('set-add').addEventListener('click', () => openSheet('sheet-lib'));
+
+$('key').addEventListener('input', e => { apiKey = e.target.value.trim(); persistKey(); showKeyState(); });
+$('key-save').addEventListener('change', () => { persistKey(); });
+$('speed').addEventListener('input', e => setSpeed(parseFloat(e.target.value)));
+$('pause').addEventListener('input', e => {
+  S.pause = parseFloat(e.target.value);
+  $('pause-val').textContent = S.pause.toFixed(1) + 's';
+  saveS();
+  if (turns.length) recalc();
+});
+$('read-diary').addEventListener('change', e => {
+  S.readDiary = e.target.checked;
+  saveS();
+  if (turns.length) { if (currentIdx < firstIdx() && !running) currentIdx = firstIdx(); renderTurns(); recalc(); updateStatus(); }
+});
+[['v-shu', 'shuVoice'], ['v-maya', 'mayaVoice'], ['v-diary', 'diaryVoice']].forEach(([id, k]) => {
+  $(id).addEventListener('change', e => {
+    S[k] = e.target.value;
+    saveS();
+    if (turns.length) { refreshDl(); recalc(); warmDay(); }
+  });
+});
+
+async function updateCacheInfo() {
+  const el = $('cache-info');
+  try {
+    const n = await idbCountAll();
+    let size = '';
+    try {
+      if (navigator.storage && navigator.storage.estimate) {
+        const est = await navigator.storage.estimate();
+        size = ` · 約${(est.usage / 1048576).toFixed(1)} MB`;
+      }
+    } catch (e) {}
+    el.textContent = `${n} 個の音声${size}`;
+  } catch (e) {
+    el.textContent = '使えません（プライベートモード？）';
+  }
+}
+$('clear-cache').addEventListener('click', async () => {
+  if (!confirm('保存済みの音声をすべて削除しますか？\n（次に再生するとき、APIで作り直します）')) return;
+  halt(); setPlayState('stopped');
+  try { await idbClear(); } catch (e) {}
+  mem.forEach(c => URL.revokeObjectURL(c.url));
+  mem.clear();
+  refreshDl();
+  updateCacheInfo();
+  toast('削除しました');
+});
+$('clear-lib').addEventListener('click', () => {
+  if (!confirm('日付一覧（ライブラリ）を空にしますか？\n（保存済みの音声は消えません）')) return;
+  halt(); setPlayState('stopped');
+  library = []; saveLib();
+  dayIdx = -1; turns = [];
+  try { localStorage.removeItem('dp2_pos'); } catch (e) {}
+  closeAllThen(() => { showPlayer(false); renderHeader(); });
+});
+
+// Prepare all audio for the current day
+$('prep-day').addEventListener('click', async () => {
+  if (!turns.length) return;
+  const list = turns.slice(firstIdx());
+  const missing = list.filter(t => !mem.has(clipKey(t)));
+  const note = $('day-note');
+  if (!missing.length) { note.textContent = 'この日の音声はすべて準備済みです。'; return; }
+  if (!apiKey) {
+    await warmDay();
+    const still = list.filter(t => !mem.has(clipKey(t))).length;
+    note.textContent = still ? `未作成の音声が${still}個あります。APIキーを入れてください。` : 'この日の音声はすべて準備済みです。';
+    note.classList.toggle('err', !!still);
     return;
   }
+  note.classList.remove('err');
+  let done = 0, failed = null;
+  note.textContent = `準備中… 0 / ${missing.length}`;
+  await Promise.all(missing.map(t => getClip(t).then(() => {
+    done++; note.textContent = `準備中… ${done} / ${missing.length}`;
+  }).catch(e => { failed = failed || e; })));
+  refreshDl(); recalc(); updateCacheInfo();
+  if (failed) { note.textContent = `エラー: ${failed.message}`; note.classList.add('err'); if (isAuthErr(failed)) showKeyState(true); }
+  else note.textContent = 'この日の音声をすべて準備しました。オフラインでも再生できます。';
+});
+
+// Download the day as one WAV (decode → join with pause gaps → 16-bit PCM)
+$('dl-day').addEventListener('click', async () => {
+  const btn = $('dl-day');
+  if (!turns.length || btn.disabled) return;
+  btn.disabled = true;
+  const label = btn.textContent;
+  const list = turns.map((t, i) => i).filter(i => i >= firstIdx());
+  const parts = [];
+  let firstError = null;
+  for (let n = 0; n < list.length; n++) {
+    const i = list[n];
+    btn.textContent = `作成中… ${n + 1} / ${list.length}`;
+    try {
+      const clip = await getClip(turns[i]);
+      if (isMine(i)) parts.push(Math.round(Math.max(ROLE_MIN, clip.dur * ROLE_FACTOR) * DECODE_SR));
+      else parts.push((await decodeBuf(clip.buf)).getChannelData(0));
+      if (n < list.length - 1 && S.pause > 0) parts.push(Math.round(S.pause * DECODE_SR));
+    } catch (e) { firstError = firstError || e; }
+  }
+  refreshDl(); recalc();
+  btn.textContent = label;
+  btn.disabled = false;
+  const frames = parts.reduce((s, p) => s + (typeof p === 'number' ? p : p.length), 0);
+  if (!frames) { $('day-note').textContent = `エラー: ${firstError ? firstError.message : '音声がありません'}`; return; }
   const out = new ArrayBuffer(44 + frames * 2);
   const view = new DataView(out);
   writeWavHeader(view, frames, DECODE_SR);
@@ -1443,23 +1448,60 @@ $('dl-all-btn').addEventListener('click', async () => {
       off += 2;
     }
   }
-
   const url = URL.createObjectURL(new Blob([out], { type: 'audio/wav' }));
   const a = document.createElement('a');
   a.href = url;
-  a.download = role ? `dialog_roleplay_${role.toLowerCase()}.wav` : 'dialog.wav';
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
-
-  btn.classList.remove('loading');
-  prog.textContent = '';
+  a.download = `${fileStem()}${S.role ? '_roleplay_' + S.role.toLowerCase() : ''}.wav`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 15000);
+  if (firstError) $('day-note').textContent = `一部の音声を作れませんでした: ${firstError.message}`;
 });
+
+// ═══════════════════════════════════════════
+//  Main buttons
+// ═══════════════════════════════════════════
+$('play').addEventListener('click', () => { unlock(); togglePlay(); });
+$('prev').addEventListener('click', () => { unlock(); prevTurn(); });
+$('next').addEventListener('click', () => { unlock(); nextTurn(); });
+
+// ═══════════════════════════════════════════
+//  Toast
+// ═══════════════════════════════════════════
+let toastTimer = null;
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+}
 
 // ═══════════════════════════════════════════
 //  Init
 // ═══════════════════════════════════════════
-loadSettings();
-updateCacheInfo();
+(function init() {
+  renderChips();
+  // First run of this version: bring over the last dialog from the previous version
+  if (!library.length && !localStorage.getItem('dp2_library')) {
+    const old = localStorage.getItem('dp_dialog');
+    if (old) {
+      const days = parseLibraryText(old);
+      if (days.length) { library = days; sortLib(); saveLib(); }
+    }
+  }
+  sortLib();
+  if (!library.length) { showPlayer(false); renderHeader(); return; }
+  const pos = loadJSON('dp2_pos');
+  let i = pos ? library.findIndex(d => d.key === pos.key) : -1;
+  if (i < 0) i = library.length - 1;
+  selectDay(i);
+  if (pos && library[i].key === pos.key && pos.idx > 0 && pos.idx < turns.length) {
+    currentIdx = pos.idx;
+    markCurrent(currentIdx);
+    updateStatus();
+    updateTime();
+  }
+})();
 </script>
 </body>
 </html>
