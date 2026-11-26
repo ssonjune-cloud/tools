@@ -266,7 +266,8 @@
   <div id="empty">
     <div class="big">🎧</div>
     <p>英文日記のファイル（または本文）を読み込むと、<br>日付ごとにダイアログを聞けます。</p>
-    <button class="btn primary" id="empty-file">ファイルを開く</button>
+    <button class="btn primary" id="empty-sync">Googleドキュメントと連携</button>
+    <button class="btn" id="empty-file">ファイルを開く</button>
     <button class="btn" id="empty-paste">貼り付けて読み込む</button>
   </div>
 </main>
@@ -319,7 +320,8 @@
     <button class="ib" data-close aria-label="閉じる"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
   </div>
   <div class="sheet-body">
-    <button class="btn primary" id="lib-file">ファイルを開く（.txt / .md）</button>
+    <button class="btn primary" id="lib-sync">Googleドキュメントから同期</button>
+    <button class="btn" id="lib-file" style="margin-top:8px">ファイルを開く（.txt / .md）</button>
     <p class="note">または下に貼り付け。日付の見出し（例: November 25, 2026, Wednesday）ごとに分けて保存します。1日分だけ貼っても、既存の日付に追加されます。</p>
     <textarea id="lib-text" style="margin-top:10px" placeholder="November 25, 2026, Wednesday&#10;&#10;(日記本文)&#10;&#10;Maya: Shu, you've been smiling a lot lately.&#10;Shu: Hmm, maybe..."></textarea>
     <div class="btn-row">
@@ -388,6 +390,21 @@
         <button class="btn" id="dl-day">まとめてダウンロード（WAV）</button>
       </div>
       <p class="note" id="day-note">ロールがオンのときは、自分の役が無音のロールプレイ用音声になります。</p>
+    </div>
+
+    <div class="sec">
+      <h3>GOOGLEドキュメント連携</h3>
+      <div class="card">
+        <div class="row">
+          <input type="url" id="sync-url" class="grow" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="sync-now">今すぐ同期</button>
+        <button class="btn" id="sync-all">過去の月も取り込む</button>
+      </div>
+      <p class="note" id="sync-note"></p>
+      <p class="note">Apps ScriptのウェブアプリURLを貼ると、アプリを開くたびにタイトルに「英文日記」を含む最新のドキュメント（今月・先月）を自動で取り込みます。月が替わって新しいドキュメントを作っても設定は不要です。</p>
     </div>
 
     <div class="sec">
@@ -479,7 +496,7 @@ function parseLibraryText(raw) {
   const days = [];
   let cur = null;
   const start = (key, title) => { cur = { key, title, diary: [], turns: [] }; days.push(cur); };
-  for (const line of raw.replace(/\r\n?/g, '\n').split('\n').map(cleanLine)) {
+  for (const line of raw.replace(/\r\n?|\u000b/g, '\n').split('\n').map(cleanLine)) {
     if (!line.trim()) continue;
     const h = parseHeader(line);
     if (h) { start(`${h.y}-${pad(h.mo)}-${pad(h.d)}`, line.trim().replace(/^#+\s*/, '')); continue; }
@@ -1304,6 +1321,115 @@ $('lib-replace').addEventListener('click', () => {
 });
 
 // ═══════════════════════════════════════════
+//  Google Docs sync (Apps Script web app)
+// ═══════════════════════════════════════════
+const SYNC_AUTO_MS = 5 * 60 * 1000;   // auto-sync again when coming back after 5 min
+let syncing = false;
+let lastSyncTry = 0;
+const syncUrl = () => (localStorage.getItem('dp2_sync_url') || '').trim();
+
+function syncNoteText() {
+  const info = loadJSON('dp2_sync_info');
+  if (!syncUrl()) return 'まだ連携していません';
+  if (!info) return '未同期';
+  const t = new Date(info.at);
+  const names = info.docs && info.docs.length ? `（${info.docs[0]}${info.docs.length > 1 ? ` ほか${info.docs.length - 1}件` : ''}）` : '';
+  return `最終同期: ${t.getMonth() + 1}/${t.getDate()} ${pad(t.getHours())}:${pad(t.getMinutes())}${names}`;
+}
+function setSyncNote(msg, err) {
+  const el = $('sync-note');
+  el.textContent = msg || syncNoteText();
+  el.classList.toggle('err', !!err);
+}
+
+// Merge fetched days into the library without disturbing playback.
+function mergeDays(days) {
+  const curKey = library[dayIdx] ? library[dayIdx].key : null;
+  const prevIdx = currentIdx;
+  const sig = d => JSON.stringify([d.diary, d.turns]);
+  const map = new Map(library.map(d => [d.key, d]));
+  const added = [], changed = [];
+  days.forEach(d => {
+    const old = map.get(d.key);
+    if (!old) added.push(d);
+    else if (sig(old) !== sig(d)) changed.push(d);
+    else return;
+    map.set(d.key, d);
+  });
+  if (!added.length && !changed.length) return { added, changed, jumped: null };
+  library = [...map.values()];
+  sortLib();
+  saveLib();
+  let jumped = null;
+  if (!running && added.length) {
+    jumped = added.reduce((a, b) => (b.key > a.key ? b : a));
+    selectDay(library.findIndex(d => d.key === jumped.key));
+  } else if (!running && curKey && changed.some(d => d.key === curKey)) {
+    selectDay(library.findIndex(d => d.key === curKey));
+    if (prevIdx > currentIdx && prevIdx < turns.length) { currentIdx = prevIdx; markCurrent(currentIdx); updateStatus(); updateTime(); savePos(); }
+  } else {
+    dayIdx = curKey ? library.findIndex(d => d.key === curKey) : dayIdx;
+    renderHeader();
+  }
+  return { added, changed, jumped };
+}
+
+async function syncDocs({ all = false, quiet = false } = {}) {
+  const url = syncUrl();
+  if (!url) { if (!quiet) { toast('設定で連携URLを入れてください'); openSettings(); } return; }
+  if (syncing) return;
+  syncing = true;
+  lastSyncTry = Date.now();
+  setSyncNote('同期中…');
+  try {
+    let u;
+    try { u = new URL(url); } catch (e) { throw new Error('URLの形が正しくありません'); }
+    u.searchParams.set('months', all ? 24 : 2);
+    let res;
+    try { res = await fetch(u.toString(), { cache: 'no-store' }); }
+    catch (e) { throw new Error(navigator.onLine ? '取得できませんでした（デプロイの「アクセスできるユーザー」が「全員」か確認）' : 'オフラインです'); }
+    if (!res.ok) throw new Error(`取得できませんでした（HTTP ${res.status}）`);
+    let data;
+    try { data = JSON.parse(await res.text()); } catch (e) { throw new Error('応答を読めませんでした（URLが …/exec で終わっているか確認）'); }
+    if (data.error) throw new Error('Apps Scriptのエラー: ' + data.error);
+    const docs = (data.docs || []).slice().sort((a, b) => (a.updated < b.updated ? -1 : 1));   // newer doc wins on same date
+    const days = parseLibraryText(docs.map(d => d.text || '').join('\n')).filter(d => d.key);
+    saveJSON('dp2_sync_info', { at: Date.now(), docs: docs.slice().reverse().map(d => d.name) });
+    if (!days.length) { setSyncNote(); if (!quiet) toast('日記（Shu: / Maya: の行）が見つかりませんでした'); return; }
+    const r = mergeDays(days);
+    setSyncNote();
+    if (r.jumped) toast(r.added.length === 1 ? `${dayLabel(r.jumped)} を追加しました` : `${r.added.length}日分を追加しました`);
+    else if (r.added.length) toast(`新しい日記を${r.added.length}日分追加しました`);
+    else if (r.changed.length) toast(`${r.changed.length}日分を更新しました`);
+    else if (!quiet) toast('最新の状態です');
+  } catch (e) {
+    setSyncNote(e.message, true);
+    if (!quiet || navigator.onLine) toast(e.message);
+  } finally {
+    syncing = false;
+  }
+}
+
+$('empty-sync').addEventListener('click', () => syncUrl() ? syncDocs({ all: true }) : openSettings());
+$('lib-sync').addEventListener('click', () => {
+  if (!syncUrl()) { closeAllThen(openSettings); return; }
+  closeAllThen(() => syncDocs());
+});
+$('sync-now').addEventListener('click', () => syncDocs());
+$('sync-all').addEventListener('click', () => syncDocs({ all: true }));
+$('sync-url').addEventListener('change', e => {
+  const v = e.target.value.trim();
+  if (v === syncUrl()) return;
+  if (v) localStorage.setItem('dp2_sync_url', v); else localStorage.removeItem('dp2_sync_url');
+  localStorage.removeItem('dp2_sync_info');
+  if (v) syncDocs({ all: true });   // first time: bring in past months too
+  else setSyncNote();
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && syncUrl() && Date.now() - lastSyncTry > SYNC_AUTO_MS) syncDocs({ quiet: true });
+});
+
+// ═══════════════════════════════════════════
 //  Settings sheet
 // ═══════════════════════════════════════════
 function fillVoices(id, val) {
@@ -1318,6 +1444,8 @@ function openSettings() {
   $('speed').value = S.speed; $('speed-val').textContent = S.speed.toFixed(2) + '×';
   $('pause').value = S.pause; $('pause-val').textContent = S.pause.toFixed(1) + 's';
   $('read-diary').checked = S.readDiary;
+  $('sync-url').value = syncUrl();
+  setSyncNote();
   fillVoices('v-shu', S.shuVoice); fillVoices('v-maya', S.mayaVoice); fillVoices('v-diary', S.diaryVoice);
   const d = library[dayIdx];
   $('prep-day').disabled = $('dl-day').disabled = !d;
@@ -1490,6 +1618,7 @@ function toast(msg) {
     }
   }
   sortLib();
+  if (syncUrl()) setTimeout(() => syncDocs({ quiet: true }), 0);
   if (!library.length) { showPlayer(false); renderHeader(); return; }
   const pos = loadJSON('dp2_pos');
   let i = pos ? library.findIndex(d => d.key === pos.key) : -1;
